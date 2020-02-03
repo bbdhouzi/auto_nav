@@ -14,7 +14,6 @@ occ_bins = [-1, 0, 100, 101]
 # create global variables
 rotated = Image.fromarray(np.array(np.zeros((1,1))))
 
-
 def callback(msg, tfBuffer):
     global rotated
 
@@ -44,6 +43,16 @@ def callback(msg, tfBuffer):
     oc3 = (oc2>1).choose(oc2,2)
     # reshape to 2D array using column order
     odata = np.uint8(oc3.reshape(msg.info.width,msg.info.height,order='F'))
+    
+    trans2 = tfBuffer.lookup_transform('map', 'base_link', rospy.Time(0))
+    cur_pos = trans2.transform.translation
+    map_res = msg.info.resolution
+    map_origin = msg.info.origin.position
+    grid_x = (cur_pos.x - map_origin.x)/map_res
+    grid_y = (cur_pos.y - map_origin.y)/map_res
+    odata[grid_x][grid_y] = 0
+    
+    
     # create image from 2D array using PIL
     img = Image.fromarray(odata)
     # rotate by 180 degrees to invert map so that the forward direction is at the top of the image
@@ -53,6 +62,9 @@ def callback(msg, tfBuffer):
     plt.draw_all()
     # pause to make sure the plot gets created
     plt.pause(0.00000000001)
+    
+    
+    #odata[cur_pos.x][cur_pos.y] = 0
 
 
 def occupancy():
