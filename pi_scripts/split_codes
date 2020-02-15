@@ -1,0 +1,29 @@
+#!/usr/bin/env python
+
+import rospy
+from geometry_msgs.msg import Twist
+import time
+
+import RPi.GPIO
+
+bool obstacle = False
+
+def pi_chat_cb(msg):
+	print(msg)
+	#obstacle = True if
+
+def pi_handler():
+	rospy.init_node(pi_handler, anonymous=True)
+	rospy.Subscriber('pi_chat', String, pi_chat_cb)
+
+	rate = rospy.Rate(5)
+	
+	while not rospy.is_shutdown():
+		print(obstacle)
+		rate.sleep()
+
+if __name__ == '__main__':
+	try:
+		pi_handler()
+	except rospy.ROSInterruptException:
+		pass
