@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+
+import time
+import RPi.GPIO as gp
+
+plunge_pin = 21
+
+gp.setmode(gp.BCM)
+
+gp.setup(plunge_pin, gp.OUT)
+
+try:
+    while True:
+        gp.output(plunge_pin, gp.HIGH)
+        time.sleep(1)
+        gp.output(plunge_pin, gp.LOW)
+        time.sleep(1)
+except KeyboardInterrupt:
+    gp.cleanup()

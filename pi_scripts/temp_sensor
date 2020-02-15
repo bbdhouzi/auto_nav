@@ -1,0 +1,25 @@
+#!/usr/bin/env python
+
+
+import time
+import smbus
+
+i2c_ch = 1
+
+i2c_address = 0x48
+reg_temp = 0x00
+
+bus = smbus.SMBus(1)
+
+def read_temp():
+    regVal = bus.read_i2c_block_data(i2c_address, reg_temp, 2)
+    print("1st byte", bin(regVal[0]))
+    print("2nd byte", bin(regVal[1]))
+
+    temp_combined = (regVal[0] << 4)|(regVal[1] >> 4)
+    print("combined", bin(temp_combined))
+
+
+
+
+read_temp()
