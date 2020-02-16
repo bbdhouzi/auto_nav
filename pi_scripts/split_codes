@@ -2,28 +2,55 @@
 
 import rospy
 from geometry_msgs.msg import Twist
+from std_msgs.msg import String
 import time
 
-import RPi.GPIO
+import RPi.GPIO as gp
 
-bool obstacle = False
+plunger_pin = 21
+servo_pin = 18
+
+gp.setmode(gp.BCM)
+gp.setup(servo_pin, gp.OUT)
+
+obstacle = False
 
 def pi_chat_cb(msg):
-	print(msg)
-	#obstacle = True if
+        global obstacle
+	rospy.loginfo(msg.data)
+	#obstacle = True if (msg.data == 'obstacle detected') else False
+        if msg.data == 'obstacle detected':
+            obstacle = True
+        elif msg.data == 'no obstacle':
+            obstacle = False
+
+def move_servo(angle):
+    duty_cycle = (angle/18) + 2.5
+    p = gp.PWM(servo_pin, 50)
+    p.start(duty_cycle)
+    time.sleep(1)
+    p.stop()
 
 def pi_handler():
-	rospy.init_node(pi_handler, anonymous=True)
-	rospy.Subscriber('pi_chat', String, pi_chat_cb)
+        global obstacle
+	rospy.init_node('pi_handler', anonymous=True)
+	rospy.Subscriber('obstacle_det', String, pi_chat_cb)
 
 	rate = rospy.Rate(5)
 	
 	while not rospy.is_shutdown():
-		print(obstacle)
+		rospy.loginfo(obstacle)
+                if (obstacle):
+                    move_servo(45)
+                else:
+                    move_servo(135)
+
+                time.sleep(1)
+
 		rate.sleep()
 
 if __name__ == '__main__':
 	try:
 		pi_handler()
 	except rospy.ROSInterruptException:
-		pass
+            gp.cleanup()
