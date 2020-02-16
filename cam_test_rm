@@ -1,0 +1,42 @@
+#!/usr/bin/env python
+
+import rospy
+import cv2
+from std_msgs.msg import String
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge, CvBridgeError
+
+cur_frame = None
+face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+
+def get_image(data):
+	global cur_frame
+	bridge = CvBridge()
+	cur_frame = bridge.imgmsg_to_cv2(data, "bgr8")
+
+
+def main():
+	global cur_frame
+	rospy.init_node('cam_test_rm', anonymous=True)
+	rospy.Subscriber('img_topic', Image, get_image)
+
+	rate = rospy.Rate(5)
+	while not rospy.is_shutdown():
+		if cur_frame is not None:
+			rows,cols,channels = cur_frame.shape
+			
+			gray_frame = cv2.cvtColor(cur_frame, cv2.COLOR_BGR2GRAY)
+			faces = face_cascade.detectMultiScale(gray_frame,1.3, 5)
+			
+			for (x,y,w,h) in faces:
+				center = ((w//2)+x, (h//2)+y)
+				cur_frame = cv2.rectangle(cur_frame, (x,y),(x+w,y+h),(255,0,0),2)
+			cv2.imshow("Image Window", cur_frame)
+			cv2.waitKey(3)
+		rate.sleep()
+
+if __name__ == '__main__':
+	try:
+		main()
+	except rospy.ROSInterruptException:
+		cv2.destroyAllWindows()

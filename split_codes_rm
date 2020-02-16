@@ -1,0 +1,63 @@
+#!/usr/bin/env python
+
+import rospy
+from sensor_msgs.msg import LaserScan
+from geometry_msgs.msg import Twist
+from std_msgs.msg import String
+import numpy as np
+import time
+
+laser_range = np.array([])
+
+front_angle = 30
+front_angles = range(-front_angle,front_angle+1,1)
+
+linear_spd = 0.1
+stop_distance = 0.9
+
+def get_laserscan(msg):
+	global laser_range
+	laser_range = np.array([msg.ranges])
+
+def mover():
+	global laser_range
+	rospy.init_node('mover', anonymous=True)
+	rospy.Subscriber('scan', LaserScan, get_laserscan)
+
+        #pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
+	pub = rospy.Publisher('obstacle_det', String, queue_size=10)
+
+        #twist = Twist()
+        #twist.linear.x = linear_spd
+        #twist.angular.z = 0.0
+        #time.sleep(1)
+        #pub.publish(twist)
+
+	rate = rospy.Rate(5)
+	time.sleep(1)
+        rospy.loginfo('ready to detect')
+	while not rospy.is_shutdown():
+		lr2 = laser_range[0,front_angles]
+                lr20 = (lr2!=0).nonzero()
+                
+                #rospy.loginfo(lr20)
+
+                lr2i = (lr2[lr20]<float(stop_distance)).nonzero()
+                if (len(lr2i[0])>0):
+                        #twist.linear.x = 0.0
+                        #pub.publish(twist)
+
+			pub.publish('obstacle detected')
+                        rospy.loginfo('------------------------------------------------------------------------------------------\n')
+			rospy.loginfo('1 meter')
+                else:
+                        pub.publish('no obstacle')
+		rate.sleep()
+
+if __name__ == '__main__':
+	try:
+		mover()
+	except rospy.ROSInterruptException:
+                gp.cleanup()
+        except KeyboardInterrupt:
+                gp.cleanup()

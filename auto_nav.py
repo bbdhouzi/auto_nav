@@ -6,6 +6,7 @@ from nav_msgs.msg import OccupancyGrid
 from sensor_msgs.msg import LaserScan
 from tf.transformations import euler_from_quaternion
 from geometry_msgs.msg import Twist
+from std_msgs.msg import String
 import math
 import cmath
 import numpy as np
@@ -156,6 +157,8 @@ def mover():
     # subscribe to map occupancy data
     rospy.Subscriber('map', OccupancyGrid, get_occupancy)
 
+    pi_pub = rospy.Publisher('pi_chat', String, queue_size=10)
+
     rate = rospy.Rate(5) # 5 Hz
 
     # find direction with the largest distance from the Lidar
@@ -171,6 +174,7 @@ def mover():
         lr20 = (lr2!=0).nonzero()
         # find values less than stop_distance
         lr2i = (lr2[lr20]<float(stop_distance)).nonzero()
+        rospy.loginfo(lr2i[0])
 
         # if the list is not empty
         if(len(lr2i[0])>0):
@@ -178,6 +182,7 @@ def mover():
             # find direction with the largest distance from the Lidar
             # rotate to that direction
             # start moving
+            pi_pub.publish('its time')
             pick_direction()
 
         rate.sleep()
@@ -187,4 +192,6 @@ if __name__ == '__main__':
     try:
         mover()
     except rospy.ROSInterruptException:
-        pass
+        exit()
+    except KeyboardInterrupt:
+	exit()
