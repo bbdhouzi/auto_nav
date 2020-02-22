@@ -24,7 +24,7 @@ def callback(msg, tfBuffer):
     # calculate total number of bins
     total_bins = msg.info.width * msg.info.height
     # log the info
-    rospy.loginfo('Width: %i Height: %i',msg.info.width,msg.info.height)
+    rospy.loginfo('Width: %i Height: %i Resolution: %f',msg.info.width,msg.info.height, msg.info.resolution)
     rospy.loginfo('Unmapped: %i Unoccupied: %i Occupied: %i Total: %i', occ_counts[0][0], occ_counts[0][1], occ_counts[0][2], total_bins)
 
     # find transform to convert map coordinates to base_link coordinates
