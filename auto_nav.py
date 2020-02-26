@@ -14,6 +14,8 @@ import time
 
 laser_range = np.array([])
 occdata = []
+occdata_h = 0
+occdata_w = 0
 yaw = 0.0
 rotate_speed = 0.1
 linear_speed = 0.01
@@ -40,7 +42,11 @@ def get_laserscan(msg):
 
 def get_occupancy(msg):
     global occdata
+    global occdata_h
+    global occdata_w
 
+    occdata_h = msg.info.height
+    occdata_w = msg.info.width
     # create numpy array
     occdata = np.array([msg.data])
     # compute histogram to identify percent of bins with -1
@@ -49,7 +55,6 @@ def get_occupancy(msg):
     total_bins = msg.info.width * msg.info.height
     # log the info
     rospy.loginfo('Unmapped: %i Unoccupied: %i Occupied: %i Total: %i', occ_counts[0][0], occ_counts[0][1], occ_counts[0][2], total_bins)
-
 
 def rotatebot(rot_angle):
     global yaw
@@ -144,6 +149,24 @@ def pick_direction():
     time.sleep(1)
     pub.publish(twist)
 
+def check_complete():
+    global occdata
+    oc2 = occdata + 1
+    odata = np.uint8(oc2.reshape(occdata_w, occdata_h, order='F'))
+    pi_pub = rospy.Publisher('pi_chat', String, queue_size=10)
+
+    mapping_incomplete = False
+    for i in range(occdata_h-1):
+        for j in range(occdata_w-1):
+            if odata[i,j] == 101:
+                continue
+            else:
+                if (odata[i+1,j] != 101 and odata[i,j] != odata[i+1,j]) or (odata[i,j+1] != 101 and odata[i,j] != odata[i,j+1]):
+                    mapping_incomplete = True
+    if not mapping_incomplete:                
+        pi_pub.publish('mapping complete')
+        rospy.loginfo("mapping completed")
+
 
 def mover():
     global laser_range
@@ -175,6 +198,8 @@ def mover():
         # find values less than stop_distance
         lr2i = (lr2[lr20]<float(stop_distance)).nonzero()
         rospy.loginfo(lr2i[0])
+
+        check_complete()
 
         # if the list is not empty
         if(len(lr2i[0])>0):

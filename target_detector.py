@@ -45,10 +45,10 @@ def main():
                 center_msg = UInt16MultiArray(data=[center[0], center[1]])
                 pub.publish(center_msg)
             
-            # cv2.imshow("cur frame", cur_frame)
-            # cv2.imshow('mask', mask)
+            cv2.imshow("cur frame", cur_frame)
+            cv2.imshow('mask', mask)
 
-            # cv2.waitKey(3)
+            cv2.waitKey(3)
         rate.sleep()
 
 if __name__ == '__main__':
