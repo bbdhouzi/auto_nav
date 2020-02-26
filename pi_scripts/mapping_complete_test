@@ -1,0 +1,44 @@
+#!/usr/bin/env python
+
+import rospy
+from std_msgs.msg import String
+import time
+
+import RPi.GPIO as gp
+
+servo_pin = 18
+gp.setmode(gp.BCM)
+gp.setup(servo_pin, gp.OUT)
+map_completed = False
+
+def pi_chat_cb(msg):
+    global map_completed
+    rospy.loginfo(msg.data)
+    if msg.data == 'mapping complete':
+        map_completed = True
+
+def move_servo(angle):
+    duty_cycle = (angle/18)+2.5
+    p = gp.PWM(servo_pin, 50)
+    p.start(duty_cycle)
+    time.sleep(1)
+    p.stop()
+
+def map_checker():
+    rospy.init_node('map_checker', anonymous=True)
+    rospy.Subscriber('pi_chat', String, pi_chat_cb)
+
+    rate = rospy.Rate(5)
+
+    while not rospy.is_shutdown():
+        if map_completed:
+            move_servo(45)
+        else:
+            move_servo(135)
+        rate.sleep()
+
+if __name__ == '__main__':
+    try:
+        map_checker()
+    except rospy.ROSInterruptException:
+        gp.cleanup()
