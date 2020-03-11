@@ -14,8 +14,11 @@ import numpy as np
 import time
 from visualization_msgs.msg import Marker
 
-import matplotlib.pyplot as plt
-from PIL import Image
+# import matplotlib.pyplot as plt
+# from PIL import Image
+
+import cv2
+from cv_bridge import CvBridge, CvBridgeError
 
 laser_range = np.array([])
 occdata = []
@@ -32,6 +35,8 @@ front_angles = range(-front_angle, front_angle+1, 1)
 occ_grid = []
 current_pos = ()
 checked_positions = []
+map_height = 0
+map_width = 0
 
 def odom_cb(msg):
 	global yaw
@@ -65,8 +70,10 @@ def occ_cb(msg, tf_buf):
 	oc2 = occdata + 1
 	# oc3 = (oc2>1).choose(oc2,2)
 	# occ_grid = np.uint8(oc3.reshape(msg.info.width, msg.info.height, order='F'))
-	# occ_grid = np.uint8(oc2.reshape(msg.info.height, msg.info.width, order='F'))
-	occ_grid = np.reshape(oc2, (msg.info.height, msg.info.width))
+	occ_grid = np.uint8(oc2.reshape(msg.info.height, msg.info.width, order='F'))
+	# rospy.loginfo(msg.info.width)
+	# rospy.loginfo(msg.info.height)
+	# occ_grid = np.uint8(np.reshape(oc2, (msg.info.height, msg.info.width)))
 	# rospy.loginfo(occ_grid)
 
 	
@@ -141,11 +148,11 @@ def get_unmapped_coord():
 		rospy.loginfo(cur_pos[0])
 		rospy.loginfo(cur_pos[1])
 		for next_pos in [(i-1,j),(i,j+1),(i+1,j),(i,j-1)]:
-			if occ_grid[next_pos] == 0:
-				rospy.loginfo('[NAV] next unmapped region: %s', str(next_pos))
-				return next_pos
-			elif occ_grid[next_pos] == 1:
-				if next_pos not in checked_positions:
+			if next_pos not in checked_positions:
+				if occ_grid[next_pos] == 0:
+					rospy.loginfo('[NAV] next unmapped region: %s', str(next_pos))
+					return next_pos
+				elif occ_grid[next_pos] == 1:
 					pos_to_check.append(next_pos)
 		checked_positions.append(cur_pos)
 
@@ -153,6 +160,33 @@ def get_unmapped_coord():
 			pos_to_check.remove(current_pos)
 	return False
 	rospy.loginfo('[MAP] mapping complete')
+
+def pick_direction2():
+	# global occ_grid
+
+	occ_data = np.array(occ_grid)
+	
+	ret,img = cv2.threshold(occ_data, 2, 255, 0)
+
+	element = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))
+	img2 = cv2.dilate(img, element)
+	img3, fc, hierarchy = cv2.findContours(img2, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+	# rospy.loginfo(hierarchy)
+	contours = fc[0]
+	lc = len(contours)
+	img4 = cv2.cvtColor(img3, cv2.COLOR_GRAY2RGB)
+
+	for contour in fc:
+		# x,y,w,h = cv2.boundingRect(contour)
+		# rospy.loginfo("%d, %d, %d, %d", x, y ,w, h)
+		start_point = contour[0][0]
+		rospy.loginfo(start_point)
+		x,y = start_point
+		# x,y = start_point[0], start_point[1]
+		cv2.rectangle(img4, (x-3,y-3),(x+3,y+3), (255,0,0), 2)
+	
+	cv2.imshow('Map', img4)
+	cv2.waitKey()
 
 def pick_direction():
 	rospy.loginfo('[NAV] choosing direction')
@@ -169,7 +203,7 @@ def pick_direction():
 	next_coord = get_unmapped_coord()	
 	angle = math.atan2((next_coord[1]-current_pos[1]),next_coord[0]-current_pos[0])
 	rospy.loginfo(angle)
-	rotatebot(angle+30)
+	rotatebot(angle+math.radians(40))
 
 	# rospy.loginfo(next_coord)
 	# nav_marker = Marker()
@@ -203,6 +237,16 @@ def pick_direction():
 	odata[current_pos] = 0
 	odata[next_coord] = 255
 
+def stopbot():
+    # publish to cmd_vel to move TurtleBot
+    pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
+
+    twist = Twist()
+    twist.linear.x = 0.0
+    twist.angular.z = 0.0
+    time.sleep(1)
+    pub.publish(twist)
+
 def mapper():
 	rospy.init_node('mapper', anonymous=True)
 
@@ -215,8 +259,10 @@ def mapper():
 	rospy.Subscriber('map', OccupancyGrid, occ_cb, tf_buf)
 
 	rate = rospy.Rate(5)
+	rospy.on_shutdown(stopbot)
+	rospy.sleep(3)
 
-	pick_direction()
+	pick_direction2()
 
 	while not rospy.is_shutdown():
 		lr2 = laser_range[0,front_angles]
@@ -225,7 +271,7 @@ def mapper():
 
 		if (len(lr2i[0])>0):
 			rospy.loginfo('[NAV] object detected')
-			pick_direction()
+			# pick_direction2()
 		
 		rate.sleep()
 
