@@ -51,6 +51,7 @@ def callback(msg, tfBuffer):
     grid_x = (cur_pos.x - map_origin.x)/map_res
     grid_y = (cur_pos.y - map_origin.y)/map_res
     odata[grid_x][grid_y] = 0
+    odata[cur_pos.x-10][cur_pos.y] = 0
     
     
     # create image from 2D array using PIL
@@ -58,7 +59,7 @@ def callback(msg, tfBuffer):
     # rotate by 180 degrees to invert map so that the forward direction is at the top of the image
     rotated = img.rotate(np.degrees(yaw)+180)
     # show image using grayscale map
-    plt.imshow(rotated,cmap='gray')
+    plt.imshow(rotated, cmap='gray')
     plt.draw_all()
     # pause to make sure the plot gets created
     plt.pause(0.00000000001)

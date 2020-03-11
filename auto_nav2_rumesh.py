@@ -6,19 +6,17 @@ from nav_msgs.msg import OccupancyGrid
 from sensor_msgs.msg import LaserScan
 from tf.transformations import euler_from_quaternion
 from geometry_msgs.msg import Twist
+from std_msgs.msg import String
 import math
 import cmath
 import numpy as np
 import time
-import cv2
-# from sound_play.msg import SoundRequest
-# from sound_play.libsoundplay import SoundClient
 
 laser_range = np.array([])
-occdata = np.array([])
+occdata = []
 yaw = 0.0
 rotate_speed = 0.1
-linear_speed = 0.1
+linear_speed = 0.5
 stop_distance = 0.25
 occ_bins = [-1, 0, 100, 101]
 front_angle = 30
@@ -37,29 +35,20 @@ def get_laserscan(msg):
     global laser_range
 
     # create numpy array
-    laser_range = np.array(msg.ranges)
-    # replace 0's with nan's
-    # could have replaced all values below msg.range_min, but the small values
-    # that are not zero appear to be useful
-    laser_range[laser_range==0] = np.nan
+    laser_range = np.array([msg.ranges])
 
 
 def get_occupancy(msg):
     global occdata
 
     # create numpy array
-    msgdata = np.array(msg.data)
+    occdata = np.array([msg.data])
     # compute histogram to identify percent of bins with -1
-    occ_counts = np.histogram(msgdata,occ_bins)
+    occ_counts = np.histogram(occdata,occ_bins)
     # calculate total number of bins
     total_bins = msg.info.width * msg.info.height
     # log the info
     rospy.loginfo('Unmapped: %i Unoccupied: %i Occupied: %i Total: %i', occ_counts[0][0], occ_counts[0][1], occ_counts[0][2], total_bins)
-
-    # make msgdata go from 0 instead of -1, reshape into 2D
-    oc2 = msgdata + 1
-    # reshape to 2D array using column order
-    occdata = np.uint8(oc2.reshape(msg.info.height,msg.info.width,order='F'))
 
 
 def rotatebot(rot_angle):
@@ -124,6 +113,7 @@ def rotatebot(rot_angle):
 def pick_direction():
     global laser_range
 
+    rospy.loginfo(['In pick_direction'])
     # publish to cmd_vel to move TurtleBot
     pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
 
@@ -134,13 +124,38 @@ def pick_direction():
     time.sleep(1)
     pub.publish(twist)
 
-    if laser_range.size != 0:
-        # use nanargmax as there are nan's in laser_range added to replace 0's
-        lr2i = np.nanargmax(laser_range)
-    else:
-        lr2i = 0
+    # try:
+    #     lr2i = np.argmax(laser_range)
+    # except ValueError:
+    #     # in case laser_range is empty
+    #     lr2i = 0
 
-    rospy.loginfo(['Picked direction: ' + str(lr2i) + ' ' + str(laser_range[lr2i]) + ' m'])
+    # for a in np.nditer(laser_range):
+    furthest_left_detected = False
+    furthest_right_detected = False
+    for i in range(1, laser_range.size//2):
+        if laser_range[0][i] > (laser_range[0][i-1]*2):
+            if i < 180:
+                furthest_left = i
+                furthest_left_detected = True
+            else:
+                furthest_right = 360 - i
+                furthest_right_detected = True
+
+    if furthest_left_detected and furthest_right_detected:
+        if furthest_left >= furthest_right:
+            lr2i = furthest_right
+        else:
+            lr2i = furthest_left
+    elif furthest_left:
+        lr2i = furthest_left
+    elif furthest_right:
+        lr2i = furthest_right
+    else:
+        lr2i = 0    
+
+
+    rospy.loginfo(['Picked direction: ' + str(lr2i)])
 
     # rotate to that direction
     rotatebot(float(lr2i))
@@ -155,67 +170,6 @@ def pick_direction():
     pub.publish(twist)
 
 
-def stopbot():
-    # publish to cmd_vel to move TurtleBot
-    pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
-
-    twist = Twist()
-    twist.linear.x = 0.0
-    twist.angular.z = 0.0
-    time.sleep(1)
-    pub.publish(twist)
-
-
-def closure(mapdata):
-    # This function checks if mapdata contains a closed contour. The function
-    # assumes that the raw map data from SLAM has been modified so that
-    # -1 (unmapped) is now 0, and 0 (unoccupied) is now 1, and the occupied
-    # values go from 1 to 101.
-
-    # According to: https://stackoverflow.com/questions/17479606/detect-closed-contours?rq=1
-    # closed contours have larger areas than arc length, while open contours have larger
-    # arc length than area. But in my experience, open contours can have areas larger than
-    # the arc length, but closed contours tend to have areas much larger than the arc length
-    # So, we will check for contour closure by checking if any of the contours
-    # have areas that are more than 10 times larger than the arc length
-    # This value may need to be adjusted with more testing.
-    ALTHRESH = 10
-    # We will slightly fill in the contours to make them easier to detect
-    DILATE_PIXELS = 3
-
-    # assumes mapdata is uint8 and consists of 0 (unmapped), 1 (unoccupied),
-    # and other positive values up to 101 (occupied)
-    # so we will apply a threshold of 2 to create a binary image with the
-    # occupied pixels set to 255 and everything else is set to 0
-    # we will use OpenCV's threshold function for this
-    ret,img2 = cv2.threshold(mapdata,2,255,0)
-    # we will perform some erosion and dilation to fill out the contours a
-    # little bit
-    element = cv2.getStructuringElement(cv2.MORPH_CROSS,(DILATE_PIXELS,DILATE_PIXELS))
-    # img3 = cv2.erode(img2,element)
-    img4 = cv2.dilate(img2,element)
-    # use OpenCV's findContours function to identify contours
-    fc = cv2.findContours(img4, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    contours = fc[0]
-    # find number of contours returned
-    lc = len(contours)
-    # create array to compute ratio of area to arc length
-    cAL = np.zeros((lc,2))
-    for i in range(lc):
-        cAL[i,0] = cv2.contourArea(contours[i])
-        cAL[i,1] = cv2.arcLength(contours[i], True)
-
-    # closed contours tend to have a much higher area to arc length ratio,
-    # so if there are no contours with high ratios, we can safely say
-    # there are no closed contours
-    cALratio = cAL[:,0]/cAL[:,1]
-    # print(cALratio)
-    if np.any(cALratio > ALTHRESH):
-        return True
-    else:
-        return False
-
-
 def mover():
     global laser_range
 
@@ -228,52 +182,33 @@ def mover():
     # subscribe to map occupancy data
     rospy.Subscriber('map', OccupancyGrid, get_occupancy)
 
-    rospy.on_shutdown(stopbot)
+    pi_pub = rospy.Publisher('pi_chat', String, queue_size=10)
 
     rate = rospy.Rate(5) # 5 Hz
 
-    # save start time to file
-    start_time = time.time()
-    # initialize variable to write elapsed time to file
-    timeWritten = 0
-
-    # find direction with the largest distance from the Lidar,
-    # rotate to that direction, and start moving
+    # find direction with the largest distance from the Lidar
+    # rotate to that direction
+    # start moving
     pick_direction()
 
     while not rospy.is_shutdown():
-        if laser_range.size != 0:
-            # check distances in front of TurtleBot and find values less
-            # than stop_distance
-            lri = (laser_range[front_angles]<float(stop_distance)).nonzero()
-            rospy.loginfo('Distances: %s', str(lri))
-        else:
-            lri[0] = []
+        # check distances in front of TurtleBot
+        lr2 = laser_range[0,front_angles]
+        # distances beyond the resolution of the Lidar are returned
+        # as zero, so we need to exclude those values
+        lr20 = (lr2!=0).nonzero()
+        # find values less than stop_distance
+        lr2i = (lr2[lr20]<float(stop_distance)).nonzero()
+        # rospy.loginfo(lr2i[0])
 
         # if the list is not empty
-        if(len(lri[0])>0):
+        if(len(lr2i[0])>0):
             rospy.loginfo(['Stop!'])
             # find direction with the largest distance from the Lidar
             # rotate to that direction
             # start moving
-            # pick_direction()
-            closure(occdata)
-
-        # check if SLAM map is complete
-        # if timeWritten :
-        #     if closure(occdata) :
-        #         # map is complete, so save current time into file
-        #         with open("maptime.txt", "w") as f:
-        #             f.write("Elapsed Time: " + str(time.time() - start_time))
-        #         timeWritten = 1
-        #         # play a sound
-        #         soundhandle = SoundClient()
-        #         rospy.sleep(1)
-        #         soundhandle.stopAll()
-        #         soundhandle.play(SoundRequest.NEEDS_UNPLUGGING)
-        #         rospy.sleep(2)
-        #         # save the map
-        #         cv2.imwrite('mazemap.png',occdata)
+            pi_pub.publish('its time')
+            pick_direction()
 
         rate.sleep()
 
@@ -282,4 +217,6 @@ if __name__ == '__main__':
     try:
         mover()
     except rospy.ROSInterruptException:
-        pass
+        exit()
+    except KeyboardInterrupt:
+	    exit()
