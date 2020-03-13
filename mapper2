@@ -2,14 +2,18 @@ class navigation():
 	def __init__(self):
 		self._checked_positions = []
 		self._current_pos = ()
+		self._target_location = ()
 
-	def checked_pos_append(pos):
+	def checked_pos_append(self, pos):
 		self._checked_positions.append(pos)
 
-	def set_current_pos(pos):
+	def set_current_pos(self, pos):
 		self._current_pos = pos
 
-	def get_next_pos(input_grid):
+	def set_target_loc(self, pos):
+		self._target_location = pos
+
+	def get_next_pos(self, input_grid):
 		pos_to_check = [self._current_pos]
 		for cur_pos in pos_to_check:
 			i,j = cur_pos[0], cur_pos[1]
@@ -19,6 +23,14 @@ class navigation():
 						print('[NAV] next unmapped region found: (%i,%i)', next_pos[0], next_pos[1])
 						return next_pos
 					elif input_grid[next_pos] == 1:
+						pos_to_check.append(next_pos)
+			self._checked_positions.append(cur_pos)
+
+			if cur_pos in pos_to_check:
+				pos_to_check.remove(cur_pos)
+
+		print('[MAP] mapping complete')
+		return self._target_location
 
 def pick_direction2():
 	# global occ_grid
