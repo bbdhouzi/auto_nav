@@ -262,7 +262,7 @@ def mapper():
 	rospy.on_shutdown(stopbot)
 	rospy.sleep(3)
 
-	pick_direction2()
+	pick_direction()
 
 	while not rospy.is_shutdown():
 		lr2 = laser_range[0,front_angles]
@@ -271,7 +271,7 @@ def mapper():
 
 		if (len(lr2i[0])>0):
 			rospy.loginfo('[NAV] object detected')
-			# pick_direction2()
+			pick_direction()
 		
 		rate.sleep()
 
