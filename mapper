@@ -156,8 +156,8 @@ def get_unmapped_coord():
 					pos_to_check.append(next_pos)
 		checked_positions.append(cur_pos)
 
-		if current_pos in pos_to_check:
-			pos_to_check.remove(current_pos)
+		if cur_pos in pos_to_check:
+			pos_to_check.remove(cur_pos)
 	return False
 	rospy.loginfo('[MAP] mapping complete')
 
