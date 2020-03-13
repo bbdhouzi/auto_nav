@@ -161,33 +161,6 @@ def get_unmapped_coord():
 	return False
 	rospy.loginfo('[MAP] mapping complete')
 
-def pick_direction2():
-	# global occ_grid
-
-	occ_data = np.array(occ_grid)
-	
-	ret,img = cv2.threshold(occ_data, 2, 255, 0)
-
-	element = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))
-	img2 = cv2.dilate(img, element)
-	img3, fc, hierarchy = cv2.findContours(img2, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
-	# rospy.loginfo(hierarchy)
-	contours = fc[0]
-	lc = len(contours)
-	img4 = cv2.cvtColor(img3, cv2.COLOR_GRAY2RGB)
-
-	for contour in fc:
-		# x,y,w,h = cv2.boundingRect(contour)
-		# rospy.loginfo("%d, %d, %d, %d", x, y ,w, h)
-		start_point = contour[0][0]
-		rospy.loginfo(start_point)
-		x,y = start_point
-		# x,y = start_point[0], start_point[1]
-		cv2.rectangle(img4, (x-3,y-3),(x+3,y+3), (255,0,0), 2)
-	
-	cv2.imshow('Map', img4)
-	cv2.waitKey()
-
 def pick_direction():
 	rospy.loginfo('[NAV] choosing direction')
 	pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
