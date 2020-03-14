@@ -9,7 +9,7 @@ def rotate_image(image, angle):
   result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
   return result
 
-class navigation():
+class Navigation():
 	def __init__(self):
 		self._checked_positions = []
 		self._target_position = ()
@@ -106,4 +106,8 @@ class navigation():
 		next_pos = self.get_closest_corner()
 		return math.atan2(next_pos[1]-self._bot_position[1],next_pos[0]-self._bot_position[0])+math.radians(30)
 
-	# def path_blocked(self, next_pos):
+	def path_blocked(self, next_pos):
+		pass
+
+	def test_func(self):
+		pass

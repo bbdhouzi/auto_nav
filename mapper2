@@ -58,3 +58,166 @@ def pick_direction2():
 	
 	cv2.imshow('Map', img4)
 	cv2.waitKey()
+
+
+def get_unmapped_coord():
+	global checked_positions
+	global next_pos
+	pos_to_check = [bot_pos]
+	for cur_pos in pos_to_check:
+		i,j = cur_pos[0], cur_pos[1]
+		rospy.loginfo(cur_pos[0])
+		rospy.loginfo(cur_pos[1])
+		for next_pos in [(i-1,j),(i,j+1),(i+1,j),(i,j-1)]:
+			if next_pos not in checked_positions:
+				if occ_grid[next_pos] == 0:
+					rospy.loginfo('[NAV] next unmapped region: %s', str(next_pos))
+					return next_pos
+				elif occ_grid[next_pos] == 1:
+					pos_to_check.append(next_pos)
+		checked_positions.append(cur_pos)
+
+		if cur_pos in pos_to_check:
+			pos_to_check.remove(cur_pos)
+	return False
+	rospy.loginfo('[MAP] mapping complete')
+
+def pick_direction():
+	rospy.loginfo('[NAV] choosing direction')
+	pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
+	# map_pub = rospy.Publisher('nav_markers', Marker, queue_size=10)
+	# rospy.sleep(0.5)
+
+	twist = Twist()
+	twist.linear.x = 0.0
+	twist.angular.z = 0.0
+	time.sleep(1)
+	pub.publish(twist)
+
+	next_coord = get_unmapped_coord()	
+	angle = math.atan2((next_coord[1]-bot_pos[1]),next_coord[0]-bot_pos[0])
+	rospy.loginfo(angle)
+	rotatebot(angle + math.radians(30))
+
+	# rospy.loginfo(next_coord)
+	# nav_marker = Marker()
+	# nav_marker.header.frame_id = "map"
+	# nav_marker.ns = "marker_test"
+	# nav_marker.id = 1
+	# # nav_marker.pose.position.x = (next_coord[0] - bot_pos[0])*0.01
+	# # nav_marker.pose.position.y = (next_coord[1] - bot_pos[1])*0.01
+	# nav_marker.pose.position.x = 0.0
+	# nav_marker.pose.position.y = 0.0
+	# nav_marker.type = nav_marker.CUBE
+	# nav_marker.action = nav_marker.MODIFY
+	# nav_marker.scale.x = 0.2
+	# nav_marker.scale.y = 0.2
+	# nav_marker.scale.z = 0.1
+	# nav_marker.pose.orientation.w = 1.0
+	# nav_marker.color.r = 1.0
+	# nav_marker.color.g = 1.0
+	# nav_marker.color.b = 0.0
+	# nav_marker.color.a = 0.7
+
+	# map_pub.publish(nav_marker)
+
+	rospy.loginfo('[NAV] resuming motion')
+	twist.linear.x = linear_speed
+	twist.angular.z = 0.0
+	time.sleep(1)
+	pub.publish(twist)
+
+	odata = occ_grid.copy()
+	odata[bot_pos] = 0
+	odata[next_coord] = 255
+
+
+def rotate_image(image, angle):
+  image_center = tuple(np.array(image.shape[1::-1]) / 2)
+  rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
+  result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
+  return result
+
+def pick_direction2():
+	# global occ_grid
+
+	occ_data = np.array(occ_grid)
+	corners = []
+
+	ret,img = cv2.threshold(occ_data, 2, 255, 0)
+
+	element = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))
+	img2 = cv2.dilate(img, element)
+	img3, fc, hierarchy = cv2.findContours(img2, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+	# rospy.loginfo(hierarchy)
+	contours = fc[0]
+	lc = len(contours)
+	img4 = cv2.cvtColor(img3, cv2.COLOR_GRAY2RGB)
+	font = cv2.FONT_HERSHEY_COMPLEX 
+
+	cv2.circle(img4, (int(bot_pos[1]), int(bot_pos[0])), 1, (0,0,255), -1)
+	img4 = rotate_image(img4, np.degrees(yaw)+180)
+
+	img_overlay = np.zeros((len(img4),len(img4[0]),3), np.uint8)
+
+	for contour in fc:
+		# x,y,w,h = cv2.boundingRect(contour)
+		# rospy.loginfo("%d, %d, %d, %d", x, y ,w, h)
+		# start_point = contour[0][0]
+		# rospy.loginfo(start_point)
+		# x,y = start_point
+		# # x,y = start_point[0], start_point[1]
+		# cv2.rectangle(img4, (x-3,y-3),(x+3,y+3), (255,0,0), 2)
+
+		approx = cv2.approxPolyDP(contour, 0.009 * cv2.arcLength(contour, True), True)
+		# cv2.drawContours(img4, [approx], 0, (0,0, 255), 5)
+
+		n = approx.ravel()
+		i = 0
+
+		r = 0
+		g = 255
+		b = 128
+
+		for j in n:
+			if (i %2 == 0):
+				x = n[i]
+				y = n[i+1]
+
+				string = str(x) + " " + str(y)
+
+				# if i == 0:
+					# cv2.putText(img4, "Arrow tip", (x,y), font, 0.1, (255,0,0))
+				# else:
+				# y += 3*i
+				# cv2.putText(img4, string, (x,y), font, 0.5, (0, 255,0))
+				# img_overlay[x][y] = (b,g,r)
+				rospy.loginfo((x,y))
+				corners.append((x,y))
+				r+=20
+				b+=10
+				g-=20
+			i += 1
+
+		for i in range(1,len(corners)):
+			cv2.line(img_overlay, (corners[i-1]), (corners[i]), (0, 255, 0), thickness=1, lineType=8)
+			cv2.circle(img_overlay, (corners[i-1][0],corners[i-1][1]), 1, (255,0,0), -1)
+
+		rospy.loginfo(bot_pos)
+
+		dist = [((x-bot_pos[0])**2 + (y-bot_pos[1]**2)) for x,y in corners]
+		# closest_corner = corners.index(min(corners))
+		closest_corner = min(corners)
+		rospy.loginfo(closest_corner)
+
+		img_overlay[closest_corner] = (0,0,255)
+
+		img_overlay2 = rotate_image(img_overlay, np.degrees(yaw)+180)
+
+		img5 = cv2.bitwise_or(img4, img_overlay2)
+	
+	cv2.imshow('Map1', img4)
+	cv2.imshow('Map2', img_overlay)
+	# cv2.imshow('Map3', img_overlay2)
+	cv2.imshow('Map4', img5)
+	cv2.waitKey(0)
