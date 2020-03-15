@@ -2,6 +2,7 @@
 
 import cv2
 import numpy as np
+import math
 
 def rotate_image(image, angle):
   image_center = tuple(np.array(image.shape[1::-1]) / 2)
@@ -65,7 +66,7 @@ class Navigation():
 	def get_corners(self):
 		ret, occ_map_raw = cv2.threshold(self.occ_grid, 2, 255, 0)
 		element = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))
-		map_dilate = cv2.map_dilate(occ_map_raw, element)
+		map_dilate = cv2.dilate(occ_map_raw, element)
 		occ_map_bw, contours_ret, hierarchy = cv2.findContours(map_dilate, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
 		contours = contours_ret[0]
 		self._occ_map = cv2.cvtColor(occ_map_bw, cv2.COLOR_GRAY2RGB)
@@ -88,6 +89,7 @@ class Navigation():
 		return min(distances)
 
 	def display_map(self): 
+		self.get_corners()
 		occ_map = cv2.circle(self._occ_map, (int(self._bot_position[1]),int(self._bot_position[0])), 1, (0,0,255), -1)
 		map_overlay = np.zeroes((len(self._occ_map),len(self._occ_map[0]), 3))
 		for i in range(1,len(self._corners)):
@@ -100,7 +102,7 @@ class Navigation():
 		occ_map_disp = cv2.bitwise_or(occ_map, map_overlay)
 
 		cv2.imshow('MAP', occ_map_disp)
-		cv2.waitKey(0)
+		cv2.waitKey(3)
 
 	def get_direction(self):
 		next_pos = self.get_closest_corner()
@@ -108,6 +110,24 @@ class Navigation():
 
 	def path_blocked(self, next_pos):
 		pass
+
+	def target_reached(self, pos):
+		if self._bot_position[0] in range(pos[0]-1, pos[0]+1,1) and self._bot_position in range(pos[1]-1,pos[1]+1,1):
+			return True
+		else:
+			return False
+	
+	def move_circular(self, pos):
+		pass
+
+	def move_to_loc(self, pos):
+		route = [pos]
+		while not self.target_reached(pos):
+			if self.path_blocked(route[0]):
+				 route.insert(0, self.get_closest_corner())
+			elif self.target_reached(route[0]):
+				self.move_circular(route[0])
+			time.sleep(1)
 
 	def test_func(self):
 		pass

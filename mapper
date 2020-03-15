@@ -174,7 +174,8 @@ def mapper():
 	rospy.on_shutdown(stopbot)
 	rospy.sleep(3)
 
-	pick_direction2()
+	# pick_direction2()
+	navigator.get_direction()
 
 	while not rospy.is_shutdown():
 		lr2 = laser_range[0,front_angles]
