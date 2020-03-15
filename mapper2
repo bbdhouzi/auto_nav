@@ -221,3 +221,10 @@ def pick_direction2():
 	# cv2.imshow('Map3', img_overlay2)
 	cv2.imshow('Map4', img5)
 	cv2.waitKey(0)
+
+
+if self.path_blocked(self._route[0]):
+	 self._route.insert(0, self.get_closest_corner())
+elif self.target_reached(self._route[0]):
+	self.move_circular(self._route[0])
+rate.sleep()
