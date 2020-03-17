@@ -270,7 +270,7 @@ class Navigation():
 		cur_route = [cur_pos, target_pos]
 		route_pos = 0
 		while True:
-			if self.path_blocked(cur_route[route_pos], cur_route[-1]]):
+			if self.path_blocked(cur_route[route_pos], cur_route[-1]):
 				self.get_corners()
 				corner_list = self._corners.copy()
 				closest_corner = self.get_closest_corner(corner_list)
