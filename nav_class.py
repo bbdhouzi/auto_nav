@@ -72,11 +72,12 @@ class Navigation():
 			if cur_pos in pos_to_check:
 				pos_to_check.remove(cur_pos)
 
+		rospy.loginfo('length of array: %d', len(self._checked_positions))
 		rospy.loginfo('[NAV][OCC] No unmapped region found!, mapping complete')
 		self._mapping_complete = True
-		# return False
 		self.display_map()
-		exit()
+		return False
+		# exit()
 	
 	def update_map(self):
 		ret, occ_map_raw = cv2.threshold(self.occ_grid, 2, 255, 0)
@@ -129,10 +130,10 @@ class Navigation():
 		occ_map_disp = np.zeros((len(self._occ_map), len(self._occ_map[0]), 3), np.uint8)
 		occ_map_disp = cv2.bitwise_or(occ_map, map_overlay, occ_map_disp)
 
-		cv2.imshow('MAP', occ_map_disp)
+		# cv2.imshow('MAP', occ_map_disp)
 		# cv2.imshow('MAP3', occ_map)
 		# cv2.imshow('MAP4', map_overlay)
-		# cv2.imshow('MAP2', self._occ_map)
+		cv2.imshow('MAP2', self._occ_map)
 		cv2.waitKey(3)
 
 	def get_direction(self, next_pos, cur_pos=None):
@@ -197,14 +198,15 @@ class Navigation():
 		self._route = [pos]
 		rate = rospy.Rate(1)
 		while not self.target_reached(pos):
-			self.set_target(pos)
-			angle = self.get_direction(self._route[0])
+			# self.set_target(pos)
+			# angle = self.get_direction(self._route[0])
+			angle = self.get_direction(pos)
 			self.rotate_bot(angle)
 			self.move_bot(self.linear_spd, 0.0)
-			if not self.target_reached(self._route[0]):
-				rate.sleep()
-			else:
-				return True
+			# if not self.target_reached(self._route[0]):
+			rate.sleep()
+			# else:
+				# return True
 			
 	def test_func(self, data):
 		# pass
