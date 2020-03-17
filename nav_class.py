@@ -21,6 +21,7 @@ class Navigation():
 		self._target_position = ()
 		self._route = []
 		self._corners = []
+		self._occ_map_raw = np.array([])
 		self._occ_map = np.array([])
 
 		self.yaw = 0.0
@@ -76,14 +77,16 @@ class Navigation():
 		# return False
 		self.display_map()
 		exit()
-
-	def get_corners(self):
+	
+	def update_map(self):
 		ret, occ_map_raw = cv2.threshold(self.occ_grid, 2, 255, 0)
 		element = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))
-		map_dilate = cv2.dilate(occ_map_raw, element)
-		occ_map_bw, contours_ret, hierarchy = cv2.findContours(map_dilate, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
-		# contours = contours_ret[0]
-		self._occ_map = cv2.cvtColor(occ_map_bw, cv2.COLOR_GRAY2RGB)
+		self._occ_map_raw = cv2.dilate(occ_map_raw, element)
+		self._occ_map = cv2.cvtColor(self._occ_map_raw, cv2.COLOR_GRAY2RGB)
+
+	def get_corners(self):
+		self.update_map()
+		occ_map_bw, contours_ret, hierarchy = cv2.findContours(self._occ_map_raw, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
 
 		for contour in contours_ret:
 			approx = cv2.approxPolyDP(contour, 0.009 * cv2.arcLength(contour, True), True)
@@ -97,10 +100,18 @@ class Navigation():
 					self._corners.append((x,y))
 				i += 1
 
-	def get_closest_corner(self):
-		self.get_corners()
-		distances = [((x-self._bot_position[0])**2 + (y-self._bot_position[1])**2) for x,y in self._corners]
-		return self._corners[distances.index(min(distances))]
+	def get_closest_corner(self, cur_pos=None, corner_list=None):
+		if cur_pos is None:
+			cur_pos = self._bot_position
+		
+		if corner_list is None:
+			corner_list = self._corners
+		else:
+			self.get_corners()
+
+		# self.get_corners()
+		distances = [((x-self._bot_position[0])**2 + (y-self._bot_position[1])**2) for x,y in corner_list]
+		return corner_list[distances.index(min(distances))]
 
 	def display_map(self): 
 		self.get_corners()
@@ -127,10 +138,10 @@ class Navigation():
 	def get_direction(self, next_pos, cur_pos=None):
 		if cur_pos is None:
 			cur_pos = self._bot_position
-			return math.atan2((next_pos[1]-cur_pos[1]),(next_pos[0]-cur_pos[0]))+math.radians(15)
+		return math.atan2((next_pos[1]-cur_pos[1]),(next_pos[0]-cur_pos[0]))+math.radians(15)
 
 	def path_blocked(self, next_pos, cur_pos=None):
-		self.get_corners()
+		self.update_map()
 		if cur_pos is None:
 			cur_pos = self._bot_position
 		
@@ -158,9 +169,6 @@ class Navigation():
 		# else:
 		# 	return False
 	
-	def move_circular(self, pos):
-		pass
-
 	def get_distance(self, pos1, pos2):
 		return (pos2[0]-pos1[0])**2 + (pos2[1] - pos1[1])**2
 
@@ -180,6 +188,7 @@ class Navigation():
 					distances.remove(max(distances))
 				else:
 					self._route.insert(0,cur_point)
+					self.display_map()
 					return
 			rospy.loginfo('[NAV][TRGT] weird error no visible target points')
 
@@ -253,3 +262,26 @@ class Navigation():
 		
 		self.move_bot(0.0, 0.0)
 		rospy.loginfo('[NAV] Facing the right direction')
+	
+	def set_route(self, target_pos, cur_pos=None):
+		if cur_pos is None:
+			cur_pos = self._bot_position
+		# self._route = [target_pos]
+		cur_route = [cur_pos, target_pos]
+		route_pos = 0
+		while True:
+			if self.path_blocked(cur_route[route_pos], cur_route[-1]]):
+				self.get_corners()
+				corner_list = self._corners.copy()
+				closest_corner = self.get_closest_corner(corner_list)
+				while not self.path_blocked(cur_pos, closest_corner):
+					corner_list.remove(closest_corner)
+					closest_corner = self.get_closest_corner(corner_list)
+				route_pos += 1
+				cur_route.insert(route_pos, closest_corner)
+		
+		
+
+
+		
+
