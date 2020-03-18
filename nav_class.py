@@ -8,6 +8,7 @@ import time
 
 import rospy
 from geometry_msgs.msg import Twist
+from visualization_msgs.msg import Marker
 
 def rotate_image(image, angle):
   image_center = tuple(np.array(image.shape[1::-1]) / 2)
@@ -19,10 +20,14 @@ class Navigation():
 	def __init__(self, linear_spd, angular_spd):
 		self._checked_positions = []
 		self._target_position = ()
-		self._route = []
-		self._corners = []
+		# self._route = []
+		self.edges = []
+		self._corners = {}
 		self._occ_map_raw = np.array([])
 		self._occ_map = np.array([])
+		self._main_route = []
+		self._total_route = []
+		self.marker_no = 0
 
 		self.yaw = 0.0
 		self.laserscan_data = np.array([])
@@ -46,8 +51,8 @@ class Navigation():
 	def update_laserscan_data(self, data):
 		self.laserscan_data = data
 
-	def update_occ_grid(self, data):
-		self.occ_grid = data
+	def update_occ_grid(self, grid):
+		self.occ_grid = grid
 
 	def update_bot_pos(self, pos):
 		self._bot_position = pos
@@ -60,6 +65,7 @@ class Navigation():
 		pos_to_check = [self._bot_position]
 		for cur_pos in pos_to_check:
 			i,j = cur_pos[0],cur_pos[1]
+			rospy.loginfo(cur_pos)
 			for next_pos in [(i-1,j),(i,j+1),(i+1,j),(i,j-1)]:
 				if next_pos not in self._checked_positions:
 					if self.occ_grid[next_pos] == 0:
@@ -76,7 +82,7 @@ class Navigation():
 		rospy.loginfo('[NAV][OCC] No unmapped region found!, mapping complete')
 		self._mapping_complete = True
 		self.display_map()
-		return False
+		return False	
 		# exit()
 	
 	def update_map(self):
@@ -85,7 +91,7 @@ class Navigation():
 		self._occ_map_raw = cv2.dilate(occ_map_raw, element)
 		self._occ_map = cv2.cvtColor(self._occ_map_raw, cv2.COLOR_GRAY2RGB)
 
-	def get_corners(self):
+	def get_edges(self):
 		self.update_map()
 		occ_map_bw, contours_ret, hierarchy = cv2.findContours(self._occ_map_raw, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
 
@@ -98,24 +104,24 @@ class Navigation():
 					x = n[i]
 					y = n[i+1]
 
-					self._corners.append((x,y))
+					# self._corners.append((x,y))
 				i += 1
 
-	def get_closest_corner(self, cur_pos=None, corner_list=None):
+	def get_closest_edge(self, cur_pos=None, corner_list=None):
 		if cur_pos is None:
 			cur_pos = self._bot_position
 		
 		if corner_list is None:
 			corner_list = self._corners
 		else:
-			self.get_corners()
+			self.get_edges()
 
 		# self.get_corners()
 		distances = [((x-self._bot_position[0])**2 + (y-self._bot_position[1])**2) for x,y in corner_list]
 		return corner_list[distances.index(min(distances))]
 
 	def display_map(self): 
-		self.get_corners()
+		self.get_edges()
 		occ_map = cv2.circle(self._occ_map, (int(self._bot_position[1]),int(self._bot_position[0])), 1, (0,0,255), -1)
 		map_overlay = np.zeros((len(self._occ_map),len(self._occ_map[0]), 3), np.uint8)
 		for i in range(1,len(self._corners)):
@@ -178,7 +184,7 @@ class Navigation():
 			cur_pos = self._bot_position
 		
 		if self.path_blocked(next_pos, cur_pos):
-			target_pos = self.get_closest_corner()
+			target_pos = self.get_closest_edge()
 			i,j = target_pos[0],target_pos[1]
 			corner_points = [(i-1,j-1), (i-1,j+1),(i+1,j+1),(i+1,j-1)]
 			distances = [self.get_distance(point, cur_pos) for point in corner_points]
@@ -188,24 +194,27 @@ class Navigation():
 					corner_points.remove(cur_point)
 					distances.remove(max(distances))
 				else:
-					self._route.insert(0,cur_point)
+					self._main_route.insert(0,cur_point)
+					self.set_marker(cur_point)
 					self.display_map()
 					return
 			rospy.loginfo('[NAV][TRGT] weird error no visible target points')
 
 	def move_to_loc(self, pos):
 		rospy.loginfo('[NAV] moving to %s', pos)
-		self._route = [pos]
+		# self._route = [pos]
+		self._main_route = [pos]
 		rate = rospy.Rate(1)
-		while not self.target_reached(pos):
-			# self.set_target(pos)
+		while not self.target_reached(self._main_route[0]):
+			self.set_target(self._main_route[0])
 			# angle = self.get_direction(self._route[0])
-			angle = self.get_direction(pos)
+			angle = self.get_direction(self._main_route[0])
 			self.rotate_bot(angle)
 			self.move_bot(self.linear_spd, 0.0)
-			# if not self.target_reached(self._route[0]):
-			rate.sleep()
-			# else:
+			if not self.target_reached(self._main_route[0]):
+				rate.sleep()
+			else:
+				self._main_route.pop(1)
 				# return True
 			
 	def test_func(self, data):
@@ -215,9 +224,37 @@ class Navigation():
 		# self.move_bot(self.linear_spd, 0.0)
 		# time.sleep(5)
 		# self.move_bot(0.0, 0.0)
-		next_pos = self.get_nearest_unmapped_region()
-		set_target(next_pos)
-		move_bot()
+		# rospy.loginfo(next_pos)
+		# self.set_target(next_pos)
+		# self.move_bot()
+		# next_pos = (230,201)
+
+		while not self._mapping_complete:
+			next_pos = self.get_nearest_unmapped_region()
+			angle = self.get_direction(next_pos)
+			self.rotate_bot(angle)
+			self.set_marker(next_pos)
+			self.move_bot(self.linear_spd, 0.0)
+
+			rate = rospy.Rate(1)
+			nloops = 0
+			while True:
+				if not self.target_reached(self._main_route[0]):
+					rospy.loginfo('checking %d', nloops)
+					nloops += 1
+					rate.sleep()
+				else:
+					self.move_bot(0.0,0.0)
+		
+		rospy.loginfo("mapping done")
+		
+		# self.move_bot(0.0,0.0)
+		# rospy.loginfo('[NAV] reached target')
+		# self.set_marker((0,0),1)
+		# self.set_marker((self._bot_position[0]-10,self._bot_position[1]-10), 2)
+		# self.set_marker((0.15, 0), 2)
+		# self.set_marker(next_pos, 2)
+
 
 
 	def move_bot(self, linear_spd, angular_spd):
@@ -234,7 +271,7 @@ class Navigation():
 		# while not self.mapping_complete():
 		while True:
 			next_pos = self.get_nearest_unmapped_region()
-			# rospy.loginfo(next_pos)
+			rospy.loginfo(next_pos)
 			if not next_pos:
 				return
 			else:
@@ -281,9 +318,32 @@ class Navigation():
 					closest_corner = self.get_closest_corner(corner_list)
 				route_pos += 1
 				cur_route.insert(route_pos, closest_corner)
-		
-		
+	def set_marker(self, pos):
+		map_pub = rospy.Publisher('nav_markers', Marker, queue_size=10)
 
+		x_pos = (pos[0] - self._bot_position[0]) * -0.05
+		y_pos = (pos[1] - self._bot_position[1]) * -0.05
 
+		rospy.sleep(2)
+		nav_marker = Marker()
+		nav_marker.header.frame_id = "base_link"
+		nav_marker.ns = "marker_test"
+		nav_marker.id = self.marker_no
+		nav_marker.pose.position.x = x_pos
+		nav_marker.pose.position.y = y_pos
+		nav_marker.type = nav_marker.CUBE
+		nav_marker.action = nav_marker.MODIFY
+		nav_marker.scale.x = 0.1
+		nav_marker.scale.y = 0.1
+		nav_marker.scale.z = 0.1
+		nav_marker.pose.orientation.w = 1.0
+		nav_marker.color.r = 1.0
+		nav_marker.color.g = 0.0
+		nav_marker.color.b = 0.0
+		nav_marker.color.a = 1.0
+
+		map_pub.publish(nav_marker)
+		rospy.loginfo('Published marker at %s', str(pos))
+		self.marker_no += 1
 		
 

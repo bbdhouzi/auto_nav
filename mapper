@@ -101,7 +101,9 @@ def mapper():
 	rospy.on_shutdown(stopbot)
 	rospy.sleep(3)
 
-	navigator.map_region()
+	# navigator.map_region()
+	navigator.test_func("")
+	# navigator.rotate_bot(360)
 	rospy.spin()
 
 if __name__ == '__main__':
