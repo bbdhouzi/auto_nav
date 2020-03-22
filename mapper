@@ -22,8 +22,8 @@ laser_range = np.array([])
 occdata = []
 
 yaw = 0.0
-rotate_speed = 0.1
-linear_speed = 0.05
+rotate_speed = 1.0
+linear_speed = 1.5
 stop_distance = 0.25
 
 occ_bins = [-1, 0, 100, 101]
@@ -75,7 +75,7 @@ def occ_cb(msg, tf_buf):
 	occ_grid = np.uint8(oc2.reshape(msg.info.height, msg.info.width, order='F'))
 
 	navigator.update_bot_pos(bot_pos)
-	navigator.update_occ_grid(occ_grid)
+	navigator.update_occ_grid(occ_grid, map_origin)
 
 def stopbot():
     # publish to cmd_vel to move TurtleBot
