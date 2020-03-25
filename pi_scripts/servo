@@ -3,38 +3,45 @@
 import time
 import RPi.GPIO as gp
 
-servo_pin = 18
+servo_pin1 = 18
+servo_pin2 = 13
 
 gp.setmode(gp.BCM)
 
-gp.setup(servo_pin, gp.OUT)
+gp.setup(servo_pin1, gp.OUT)
+gp.setup(servo_pin2, gp.OUT)
 
 
 #p.start(1.0)
 
-def change_pos(angle_str):
+def change_pos(angle_str1, angle_str2):
     #if angle_str.isnumeric():
-    if True:
-        angle = int(angle_str)
-        if not (0 <= angle <= 180):
-            print('invalid input')
-            return 1
-    else:
+    angle1 = int(angle_str1)
+    angle2 = int(angle_str2)
+    if not (0 <= angle1 <= 180 and 0 <= angle2 <= 180):
         print('invalid input')
-        return 1
+        return
 
-    duty_cycle = (int(angle)/18) + 2.5
+    duty_cycle1 = (int(angle1)/18) + 2.5
+    duty_cycle2 = (int(angle2)/18) + 2.5
     #p.ChangeDutyCycle(duty_cycle)
-    p = gp.PWM(servo_pin, 50)
-    p.start(duty_cycle)
+    p1 = gp.PWM(servo_pin1, 50)
+    p2 = gp.PWM(servo_pin2, 50)
+
+    p1.start(duty_cycle1)
     time.sleep(1)
-    p.stop()
+    p1.stop()
+
+    p2.start(duty_cycle2)
+    time.sleep(0.5)
+    p2.start(0)
+    p2.stop()
 
 try:
     while True:
-        input_angle = input('please enter angle: ')
-        change_pos(input_angle)
-        input_angle = 0
+        input_angle1, input_angle2 = input('please enter angle: ').splt()
+        change_pos(input_angle1, input_angle2)
+        input_angle1, input_angle2 = 0, 0
 except KeyboardInterrupt:
     #p.stop()
     gp.cleanup()
