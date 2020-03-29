@@ -80,14 +80,16 @@ def read_file(filename):
 
 if __name__ == '__main__':
 	# print(read_file('closed_map.txt'))
-	arr1 = read_file('closed_map_proper.txt')
+	# arr1 = read_file('closed_map_proper.txt')
 	# print_map(arr1, 'closed_map_proper.jpg')
-	arr2 = read_file('open_map.txt')
+	# arr2 = read_file('open_map.txt')
 	# print_map(arr2, 'open_map.jpg')
+	arr3 = read_file('complete_map_trial.txt')
+	print_map(arr3, 'complete_map.jpg')
 
 	# print(check_complete_rec2(arr1))
-	print(check_complete3(arr1,(198,197)))
-	print(check_complete3(arr2,(198,197)))
+	# print(check_complete3(arr1,(198,197)))
+	# print(check_complete3(arr2,(198,197)))
 	# print(check_complete2(arr1))
 	# print(check_complete2(arr2))
 	# print(check_complete_rec(arr1))

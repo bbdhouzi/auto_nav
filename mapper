@@ -23,7 +23,7 @@ occdata = []
 
 yaw = 0.0
 rotate_speed = 1.0
-linear_speed = 1.5
+linear_speed = 0.5
 stop_distance = 0.25
 
 occ_bins = [-1, 0, 100, 101]
@@ -101,9 +101,30 @@ def mapper():
 	rospy.on_shutdown(stopbot)
 	rospy.sleep(3)
 
+	# navigator.rotate_bot(math.degrees(10))
+	# time.sleep(1)
+	# navigator.rotate_bot(math.degrees(-10))
+	# time.sleep(1)
+
+	navigator.display_map()
+
 	# navigator.map_region()
-	navigator.test_func("")
+	# navigator.test_func("")
 	# navigator.rotate_bot(360)
+	# rate = rospy.Rate(5)
+	# while not navigator.mapping_complete():
+	# 	navigator.get_nearest_unmapped_region()
+	# 	navigator.set_target()
+	# 	# navigator.set_marker()
+	# 	# navigator.move_to_target()
+	# 	target = navigator.get_next_target()
+	# 	angle = navigator.get_direction(target)
+	# 	navigator.rotate_bot(angle)
+	# 	navigator.display_map()
+	# 	navigator.move_bot(linear_speed, 0.0)
+	# 	rate.sleep()
+		
+
 	rospy.spin()
 
 if __name__ == '__main__':

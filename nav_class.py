@@ -10,6 +10,9 @@ import rospy
 from geometry_msgs.msg import Twist
 from visualization_msgs.msg import Marker
 
+import matplotlib.pyplot as plt
+from PIL import Image
+
 def rotate_image(image, angle):
   image_center = tuple(np.array(image.shape[1::-1]) / 2)
   rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
@@ -19,18 +22,19 @@ def rotate_image(image, angle):
 class Navigation():
 	def __init__(self, linear_spd, angular_spd):
 		self._checked_positions = []
-		self._target_position = ()
-		# self._route = []
 		self._edges = []
-		# self._corners = {}
 		self._occ_map_raw = np.array([])
 		self._occ_map = np.array([])
 		self.map_origin = ()
+		self.map_width = 0
+		self.map_height = 0
 
-		# self._total_route = []
+		self._edge_map = np.array([])
+
 		self.marker_no = 0
-		self._main_route = []
-		self._pseudo_route = []
+
+		self._main_route = []		#this is the actual route followed by the bot| list of corners
+		self._pseudo_route = []		#this is the list of edges the bot has to go around| list of edges
 
 		self.yaw = 0.0
 		self.laserscan_data = np.array([])
@@ -42,12 +46,7 @@ class Navigation():
 
 		self._mapping_complete = False
 
-	def checked_pos_append(self, pos):
-		self._checked_positions.append(pos)
-
-	def set_target_pos(self, pos):
-		self._target_position = pos
-
+	## these methods are to update the sensor data from the main file
 	def update_yaw(self, data):
 		self.yaw = data
 
@@ -57,13 +56,21 @@ class Navigation():
 	def update_occ_grid(self, grid, origin):
 		self.occ_grid = grid
 		self.map_origin = origin
+		self.map_width = len(grid[0])
+		self.map_height = len(grid)
 
 	# bot pos is stored as (x,y) coordinate
 	def update_bot_pos(self, pos):
 		self._bot_position = pos
+	## end of sensor data update methods
 
-	def mapping_complete(self):
-		return self._mapping_complete
+	def get_next_target(self):
+		return self._main_route[0]
+
+	# returns the square of the distance between 2 points
+	# mostly used to compare distances so exact distance is not required
+	def get_distance(self, pos1, pos2):
+		return (pos2[0]-pos1[0])**2 + (pos2[1] - pos1[1])**2
 
 	# Find the nearest unmapped region (-1 in occ_grid)
 	# returns False if there are no unmapped regions, i.e mapping has been completed
@@ -94,77 +101,47 @@ class Navigation():
 		return False	
 		# exit()
 	
+	# update occ_map and occ_map_raw
 	def update_map(self):
 		ret, occ_map_raw = cv2.threshold(self.occ_grid, 2, 255, 0)
 		element = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))
 		self._occ_map_raw = cv2.dilate(occ_map_raw, element)
 		self._occ_map = cv2.cvtColor(self._occ_map_raw, cv2.COLOR_GRAY2RGB)
 
-	# Find all the wall start/end points in the current map
-	def get_edges(self):
+	#find the edges of the visible walls
+	def update_edges(self):
 		self.update_map()
-		rospy.loginfo('[NAV][EDGE] Locating all known edges from map')
-		occ_map_bw, contours_ret, hierarchy = cv2.findContours(self._occ_map_raw, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+		self._edge_map = np.zeros((self.map_height, self.map_width, 3), np.uint8)
 
-		for contour in contours_ret:
-			approx = cv2.approxPolyDP(contour, 0.009 * cv2.arcLength(contour, True), True)
-			n = approx.ravel()
-			i = 0
-			for j in n:
-				if i%2 == 0:
+		occ_map_bw, contours_ret, hierarchy = cv2.findContours(self._occ_map_raw, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+		for cnt_idx in range(len(contours_ret)):
+			if hierarchy[0][cnt_idx][3] != -1:
+				approx = cv2.approxPolyDP(contours_ret[cnt_idx], 0.009*cv2.arcLength(contours_ret[cnt_idx], True), True)
+				n = approx.ravel()
+				for i in range(0,n,2):
 					x = n[i]
 					y = n[i+1]
 
 					self._edges.append((x,y))
-				i += 1
+					cv2.circle(self._edge_map, (x,y), 3, (255,0,0), -1)
 
-	# Find the nearest edge to a particular pos,
+		if len(self._edges) == 0:
+			rospy.loginfo('[NAV][EDGE] No edges detected, there is likely an error')
+			self.show_map()
+
+	# Find the nearest edge to a particular position,
 	# inputs: 
-	# 	pos - position to check for, assumed as bots current position if not provided
+	# 	pos - position to check for
 	# 	edge_list - list of edges to check against, assumed as latest edge list if not provided
-	def get_closest_edge(self, pos=None, edge_list=None):
-		if pos is None:
-			pos = self._bot_position
-		
+	def get_closest_edge(self, pos, edge_list=None):
 		if edge_list is None:
+			self.update_edges()
 			edge_list = self._edges
-		else:
-			self.get_edges()
 
 		rospy.loginfo('[NAV][EDGE] Locating the nearest edge to %s', str(pos))
-		# self.get_corners()
-		# distances = [((x-self.pos[0])**2 + (y-self.pos[1])**2) for x,y in corner_list]
 		distances = [self.get_distance(edge_pos, pos) for edge_pos in edge_list]
+		rospy.loginfo(distances)
 		return edge_list[distances.index(min(distances))]
-
-	def display_map(self): 
-		self.get_edges()
-		occ_map = cv2.circle(self._occ_map, (int(self._bot_position[1]),int(self._bot_position[0])), 1, (0,0,255), -1)
-		map_overlay = np.zeros((len(self._occ_map),len(self._occ_map[0]), 3), np.uint8)
-		for i in range(1,len(self._edges)):
-			cv2.line(map_overlay, (self._edges[i-1]),(self._edges[i]), (0,255,0), thickness=1, lineType=8)
-			cv2.circle(map_overlay, (self._edges[i-1][0],self._edges[i-1][1]), 1, (255,0,0),-1)
-		
-		# map_overlay[self.get_closest_edge()] = (0,0,255)
-		closest_edge = self.get_closest_edge()
-		occ_map = cv2.circle(occ_map, (int(closest_edge[1]),int(closest_edge[0])), 1, (0,255,255), -1)
-		occ_map = cv2.circle(occ_map, (self._main_route[0][1], self._main_route[0][0]), 1, (0,128,255), -1)
-		# occ_map = cv2.circle(occ_map, (self._pseudo_route[0][1], self._pseudo_route[0[0]]), 1, (255,255,0), -1)
-		# map_overlay = rotate_image(map_overlay, np.degrees(self.yaw)+180)
-
-		occ_map_disp = np.zeros((len(self._occ_map), len(self._occ_map[0]), 3), np.uint8)
-		occ_map_disp = cv2.bitwise_or(occ_map, map_overlay, occ_map_disp)
-
-		cv2.imshow('MAP', occ_map_disp)
-		# cv2.imshow('MAP3', occ_map)
-		# cv2.imshow('MAP4', map_overlay)
-		# cv2.imshow('MAP2', self._occ_map)
-		cv2.waitKey(0)
-
-	def get_direction(self, next_pos, cur_pos=None):
-		if cur_pos is None:
-			cur_pos = self._bot_position
-		return math.atan2((next_pos[1]-cur_pos[1]),(next_pos[0]-cur_pos[0]))+math.radians(15)
 
 	# uses opencv line overlap to check if the path to next_pos is blocked from cur_pos.
 	# cur_pos is assumed to be the bots current position if not provided
@@ -173,33 +150,60 @@ class Navigation():
 		if cur_pos is None:
 			cur_pos = self._bot_position
 		
-		# rospy.loginfo(cur_pos)
-		# rospy.loginfo(next_pos)
 		path_img = np.zeros((len(self._occ_map),len(self._occ_map[0]), 1), np.uint8)
 		cv2.line(path_img, (int(cur_pos[0]), int(cur_pos[1])), (next_pos), 255, thickness=1, lineType=8)
 
-		# rospy.loginfo(np.any(np.logical_and(path_img, self._occ_map)))
-		# cv2.imshow('MAP1', self._occ_map)
-		# cv2.imshow('MAP2', path_img)
-		# cv2.waitKey(3)
 		return np.any(np.logical_and(path_img, self._occ_map))
 
+	def show_map(self):
+		img1 = Image.fromarray(self._occ_map)
+		img2 = Image.fromarray(self._edge_map)
+
+		plt.imshow(img1)
+		# plt.imshow(img2)
+
+		plt.draw_all()
+		plt.pause(0.00000001)
+		plt.show()
+
+	def display_map(self):
+		self.update_edges() # also calls self.update_map()
+
+		occ_map = cv2.circle(self._occ_map, self._bot_position, 3, (0,0,255), -1)
+		map_overlay = np.zeros((len(self._occ_map),len(self._occ_map[0]), 3), np.uint8)
+
+		unmapped_region = self.get_nearest_unmapped_region()
+		cv2.circle(map_overlay, unmapped_region, 3, (128,128,256), -1)
+
+		closest_edge = self.get_closest_edge(unmapped_region)
+		cv2.circle(map_overlay, closest_edge, 3, (0,255,0), -1)
+		# map_overlay = rotate_image(map_overlay, np.degrees(self.yaw)+180)
+
+		occ_map_disp = np.zeros((len(self._occ_map), len(self._occ_map[0]), 3), np.uint8)
+
+		map_overlay = cv2.bitwise_or(map_overlay, self._edge_map, map_overlay)
+		occ_map_disp = cv2.bitwise_or(occ_map, map_overlay, occ_map_disp)
+
+		img = Image.fromarray(occ_map_disp)
+		plt.imshow(img)
+		plt.draw_all()
+		plt.pause(0.00000001)
+		plt.show()
+
+		# cv2.imshow('MAP', occ_map_disp)
+		# cv2.imshow('MAP3', occ_map)
+		# cv2.imshow('MAP4', map_overlay)
+		# cv2.imshow('MAP2', self._occ_map)
+		# cv2.waitKey(0)
+
+	def get_direction(self, next_pos, cur_pos=None):
+		if cur_pos is None:
+			cur_pos = self._bot_position
+		return math.atan2((next_pos[1]-cur_pos[1]),(next_pos[0]-cur_pos[0]))
+
 	def target_reached(self, pos):
-		# rospy.loginfo('in target reached: %s', str(pos))
-		if not self.mapping_complete():
-			if self.path_blocked(pos):
-				return False
-			else:
-				return True
-		# i,j = self._bot_position[0],self._bot_position[1]
-		# if pos in [(i,j), (i-1,)]
-		# if self._bot_position[0] in range(pos[0]-1, pos[0]+1,1) and self._bot_position in range(pos[1]-1,pos[1]+1,1):
-		# 	return True
-		# else:
-		# 	return False
-	
-	def get_distance(self, pos1, pos2):
-		return (pos2[0]-pos1[0])**2 + (pos2[1] - pos1[1])**2
+		if not self._mapping_complete:
+			return not self.path_blocked(pos)
 
 	# find the actual target the bot should move towards
 	# if next_pos is not specified, it is assumed to be the first target in self.pseudo_route
@@ -261,34 +265,6 @@ class Navigation():
 		time.sleep(1)
 		pub.publish(twist)
 
-	def move_to_target(self, target_pos):
-		rate = rospy.Rate(1)
-		angle = self.get_direction(target_pos)
-		self.rotate_bot(angle)
-		self.move_bot(self.linear_spd, 0.0)
-		while not self.target_reached(target_pos):
-			distance = self.get_distance(self._bot_position, target_pos)
-			rospy.loginfo('[NAV][MOV] Remaining distance: %d', distance)
-			rate.sleep()
-		return
-
-	def map_region(self):
-		rospy.loginfo('[NAV][MAP] Starting to map the unknown region')
-		while not self.mapping_complete():
-			self.get_nearest_unmapped_region()
-			self.set_target()
-			# self.display_map()
-			self.set_marker(self._main_route[0])
-			self.move_to_target(self._main_route[0])
-		# while not self.mapping_complete():
-		# while True:
-		# 	next_pos = self.get_nearest_unmapped_region()
-		# 	rospy.loginfo(next_pos)
-		# 	if not next_pos:
-		# 		return
-		# 	else:
-		# 		self.move_to_loc(next_pos)
-	
 	def rotate_bot(self, angle):
 		rate = rospy.Rate(1)
 		current_yaw = np.copy(self.yaw)
@@ -313,6 +289,34 @@ class Navigation():
 		
 		self.move_bot(0.0, 0.0)
 		rospy.loginfo('[NAV] Facing the right direction')
+
+	def move_to_target(self, target_pos):
+		rate = rospy.Rate(1)
+		angle = self.get_direction(target_pos)
+		self.rotate_bot(angle)
+		self.move_bot(self.linear_spd, 0.0)
+		while not self.target_reached(target_pos):
+			distance = self.get_distance(self._bot_position, target_pos)
+			rospy.loginfo('[NAV][MOV] Remaining distance: %d', distance)
+			rate.sleep()
+		return
+
+	def map_region(self):
+		rospy.loginfo('[NAV][MAP] Starting to map the unknown region')
+		while not self.mapping_complete():
+			self.get_nearest_unmapped_region()
+			self.set_target()
+			# self.display_map()
+			self.set_marker(self._main_route[0])
+			# self.move_to_target(self._main_route[0])
+		# while not self.mapping_complete():
+		# while True:
+		# 	next_pos = self.get_nearest_unmapped_region()
+		# 	rospy.loginfo(next_pos)
+		# 	if not next_pos:
+		# 		return
+		# 	else:
+		# 		self.move_to_loc(next_pos)
 	
 	def set_route(self, target_pos, cur_pos=None):
 		if cur_pos is None:
