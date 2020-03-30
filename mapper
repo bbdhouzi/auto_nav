@@ -74,7 +74,7 @@ def occ_cb(msg, tf_buf):
 	oc2 = occdata + 1
 	occ_grid = np.uint8(oc2.reshape(msg.info.height, msg.info.width, order='F'))
 
-	navigator.update_bot_pos(bot_pos)
+	navigator.update_bot_pos((bot_pos[1],bot_pos[0]))
 	navigator.update_occ_grid(occ_grid, map_origin)
 
 def stopbot():
@@ -106,7 +106,8 @@ def mapper():
 	# navigator.rotate_bot(math.degrees(-10))
 	# time.sleep(1)
 
-	navigator.display_map()
+	# navigator.display_map()
+	navigator.test_func('')
 
 	# navigator.map_region()
 	# navigator.test_func("")

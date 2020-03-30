@@ -19,6 +19,12 @@ def rotate_image(image, angle):
   result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
   return result
 
+def get_rot_coord(image, angle, pos):
+	image_center = tuple(np.array(image.shape[1::-1])/2)
+	rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
+	pos_mat = np.array([[pos[0]],[pos[1]], [1]])
+	return rot_mat.dot(pos_mat)
+
 class Navigation():
 	def __init__(self, linear_spd, angular_spd):
 		self._checked_positions = []
@@ -115,10 +121,11 @@ class Navigation():
 
 		occ_map_bw, contours_ret, hierarchy = cv2.findContours(self._occ_map_raw, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
 		for cnt_idx in range(len(contours_ret)):
-			if hierarchy[0][cnt_idx][3] != -1:
+			# if hierarchy[0][cnt_idx][3] != -1:
+			if True:
 				approx = cv2.approxPolyDP(contours_ret[cnt_idx], 0.009*cv2.arcLength(contours_ret[cnt_idx], True), True)
 				n = approx.ravel()
-				for i in range(0,n,2):
+				for i in range(0,len(n),2):
 					x = n[i]
 					y = n[i+1]
 
@@ -171,35 +178,44 @@ class Navigation():
 
 		occ_map = cv2.circle(self._occ_map, self._bot_position, 3, (0,0,255), -1)
 		map_overlay = np.zeros((len(self._occ_map),len(self._occ_map[0]), 3), np.uint8)
+		# cv2.circle(map_overlay, self._bot_position, 3, (0,0,255, -1))
 
 		unmapped_region = self.get_nearest_unmapped_region()
 		cv2.circle(map_overlay, unmapped_region, 3, (128,128,256), -1)
 
 		closest_edge = self.get_closest_edge(unmapped_region)
 		cv2.circle(map_overlay, closest_edge, 3, (0,255,0), -1)
-		# map_overlay = rotate_image(map_overlay, np.degrees(self.yaw)+180)
+		map_overlay = rotate_image(map_overlay, np.degrees(self.yaw)+180)
+
+		rot_pos = get_rot_coord(self._edge_map,np.degrees(self.yaw)+180, closest_edge)
+		print(rot_pos)
+		cv2.circle(self._edge_map, (rot_pos[0], rot_pos[1]), 3, (0,255,255), -1)
 
 		occ_map_disp = np.zeros((len(self._occ_map), len(self._occ_map[0]), 3), np.uint8)
 
-		map_overlay = cv2.bitwise_or(map_overlay, self._edge_map, map_overlay)
+		# map_overlay = cv2.bitwise_or(map_overlay, self._edge_map, map_overlay)
 		occ_map_disp = cv2.bitwise_or(occ_map, map_overlay, occ_map_disp)
 
-		img = Image.fromarray(occ_map_disp)
-		plt.imshow(img)
-		plt.draw_all()
-		plt.pause(0.00000001)
-		plt.show()
+		# img = Image.fromarray(occ_map_disp)
+		# plt.imshow(img)
+		# plt.draw_all()
+		# plt.pause(0.00000001)
+		# plt.show()
 
-		# cv2.imshow('MAP', occ_map_disp)
-		# cv2.imshow('MAP3', occ_map)
-		# cv2.imshow('MAP4', map_overlay)
+		cv2.imshow('occ_map_disp', occ_map_disp)
+		cv2.imshow('occ_map', occ_map)
+		cv2.imshow('map_overlay', map_overlay)
+		cv2.imshow('edges', self._edge_map)
 		# cv2.imshow('MAP2', self._occ_map)
-		# cv2.waitKey(0)
+		cv2.waitKey(0)
 
 	def get_direction(self, next_pos, cur_pos=None):
 		if cur_pos is None:
 			cur_pos = self._bot_position
-		return math.atan2((next_pos[1]-cur_pos[1]),(next_pos[0]-cur_pos[0]))
+
+		rot_pos = get_rot_coord(self._occ_map, 180, next_pos)
+		# rot_pos = next_pos
+		return math.atan2((rot_pos[1]-cur_pos[1]),(rot_pos[0]-cur_pos[0]))
 
 	def target_reached(self, pos):
 		if not self._mapping_complete:
@@ -255,7 +271,12 @@ class Navigation():
 			
 	def test_func(self, data):
 		# pass
-		self.map_region()
+		# self.map_region()
+		unmapped_region = self.get_nearest_unmapped_region()
+		next_pos = self.get_closest_edge(unmapped_region)
+		angle = self.get_direction(next_pos)
+		self.rotate_bot(angle)
+		self.move_bot(self.linear_spd, 0.0)
 
 	def move_bot(self, linear_spd, angular_spd):
 		pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
