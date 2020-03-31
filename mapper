@@ -22,7 +22,7 @@ laser_range = np.array([])
 occdata = []
 
 yaw = 0.0
-rotate_speed = 0.01
+rotate_speed = 0.5
 linear_speed = 0.1
 stop_distance = 0.25
 
@@ -76,6 +76,7 @@ def occ_cb(msg, tf_buf):
 	occ_grid = np.uint8(oc2.reshape(msg.info.height, msg.info.width, order='F'))
 
 	navigator.update_bot_pos((bot_pos[1],bot_pos[0]))
+	# navigator.update_bot_pos(bot_pos)
 	navigator.update_occ_grid(occ_grid, map_origin)
 
 def stopbot():

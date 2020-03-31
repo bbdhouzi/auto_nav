@@ -84,15 +84,17 @@ class Navigation():
 		rospy.loginfo('[NAV][OCC] Finding the closest unmapped region')
 		pos_to_check = [self._bot_position]
 		self._checked_positions = []
+		# rospy.loginfo(self.occ_grid)
 		for cur_pos in pos_to_check:
-			i,j = cur_pos[0],cur_pos[1]
-			rospy.loginfo(cur_pos)
+			# i,j = cur_pos[0],cur_pos[1]
+			i,j = cur_pos[1],cur_pos[0]
+			rospy.loginfo('[MAP] %s', str(cur_pos))
 			for next_pos in [(i-1,j),(i,j+1),(i+1,j),(i,j-1)]:
 				if next_pos not in self._checked_positions:
 					if self.occ_grid[next_pos] == 0:
 						rospy.loginfo('[NAV][OCC] Found closest unmapped region at %s', str(next_pos))
 						self._pseudo_route.insert(0, next_pos)
-						return next_pos
+						return (next_pos[1],next_pos[0])
 					elif self.occ_grid[next_pos] == 1:
 						pos_to_check.append(next_pos)
 			self._checked_positions.append(cur_pos)
@@ -109,7 +111,7 @@ class Navigation():
 	
 	# update occ_map and occ_map_raw
 	def update_map(self):
-		ret, occ_map_raw = cv2.threshold(self.occ_grid, 2, 255, 0)
+		ret, occ_map_raw = cv2.threshold(self.occ_grid, 1, 255, 0)
 		element = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))
 		self._occ_map_raw = cv2.dilate(occ_map_raw, element)
 		self._occ_map = cv2.cvtColor(self._occ_map_raw, cv2.COLOR_GRAY2RGB)
@@ -158,7 +160,7 @@ class Navigation():
 			cur_pos = self._bot_position
 		
 		path_img = np.zeros((len(self._occ_map),len(self._occ_map[0]), 1), np.uint8)
-		cv2.line(path_img, (int(cur_pos[0]), int(cur_pos[1])), (next_pos), 255, thickness=1, lineType=8)
+		cv2.line(path_img, (int(cur_pos[1]), int(cur_pos[0])), (next_pos), 255, thickness=1, lineType=8)
 
 		return np.any(np.logical_and(path_img, self._occ_map))
 
@@ -213,10 +215,13 @@ class Navigation():
 		if cur_pos is None:
 			cur_pos = self._bot_position
 
-		rot_pos = get_rot_coord(self._occ_map, np.degrees(self.yaw), next_pos)
-		# rot_pos = next_pos
+		# rot_pos = get_rot_coord(self._occ_map, np.degrees(self.yaw), next_pos)
+		rot_pos = next_pos
 		# return math.atan2((rot_pos[1]-cur_pos[1]),(rot_pos[0]-cur_pos[0]))
-		return math.atan2((rot_pos[1]-cur_pos[0]),(rot_pos[0]-cur_pos[1]))
+		j_dist = rot_pos[1] - cur_pos[1]
+		i_dist = rot_pos[0] - cur_pos[0]
+		rospy.loginfo('tan %d/%d', i_dist, j_dist)
+		return math.atan2((rot_pos[1]-cur_pos[1]),(rot_pos[0]-cur_pos[0]))
 
 	def target_reached(self, pos):
 		if not self._mapping_complete:
@@ -274,9 +279,20 @@ class Navigation():
 		# pass
 		# self.map_region()
 		unmapped_region = self.get_nearest_unmapped_region()
-		next_pos = self.get_closest_edge(unmapped_region)
+
+		target = ()
+		if self.path_blocked(unmapped_region, self._bot_position):
+			rospy.loginfo('PATH BLOCKED')
+			target = self.get_closest_edge(unmapped_region)
+		else:
+			rospy.loginfo('FREE MAP')
+			target = unmapped_region
+
+		rospy.loginfo('TARGET: %s', str(target))
+
+		# next_pos = self.get_closest_edge(unmapped_region)
 		self.display_map()
-		angle = self.get_direction(next_pos)
+		angle = self.get_direction(target)
 		self.rotate_bot(math.degrees(self.yaw) + math.degrees(angle) + 180)
 		self.move_bot(self.linear_spd, 0.0)
 		# self.rotate_bot(180)
