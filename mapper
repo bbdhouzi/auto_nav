@@ -61,7 +61,7 @@ def occ_cb(msg, tf_buf):
 	occ_counts = np.histogram(occdata, occ_bins)
 	total_bins = msg.info.width * msg.info.height
 
-	rospy.loginfo('Unmapped: %i, Unoccupied: %i, Occupied: %i, Total: %i', occ_counts[0][0], occ_counts[0][1], occ_counts[0][2], total_bins)
+	# rospy.loginfo('Unmapped: %i, Unoccupied: %i, Occupied: %i, Total: %i', occ_counts[0][0], occ_counts[0][1], occ_counts[0][2], total_bins)
 
 	trans2 = tf_buf.lookup_transform('map', 'base_link', rospy.Time(0))
 	cur_pos = trans2.transform.translation

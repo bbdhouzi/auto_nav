@@ -160,9 +160,12 @@ class Navigation():
 			cur_pos = self._bot_position
 		
 		path_img = np.zeros((len(self._occ_map),len(self._occ_map[0]), 1), np.uint8)
-		cv2.line(path_img, (int(cur_pos[1]), int(cur_pos[0])), (next_pos), 255, thickness=1, lineType=8)
+		cv2.line(path_img, (int(cur_pos[0]), int(cur_pos[1])), (next_pos), 255, thickness=1, lineType=8)
 
-		return np.any(np.logical_and(path_img, self._occ_map))
+		cv2.imshow('PATH', path_img)
+		cv2.waitKey(0)
+
+		return np.any(np.logical_and(path_img, self._occ_map_raw))
 
 	def show_map(self):
 		img1 = Image.fromarray(self._occ_map)
@@ -218,6 +221,8 @@ class Navigation():
 		# rot_pos = get_rot_coord(self._occ_map, np.degrees(self.yaw), next_pos)
 		rot_pos = next_pos
 		# return math.atan2((rot_pos[1]-cur_pos[1]),(rot_pos[0]-cur_pos[0]))
+		rospy.loginfo('rot_pos: %s', str(rot_pos))
+		rospy.loginfo('cur_pos: %s', str(cur_pos))
 		j_dist = rot_pos[1] - cur_pos[1]
 		i_dist = rot_pos[0] - cur_pos[0]
 		rospy.loginfo('tan %d/%d', i_dist, j_dist)
@@ -292,7 +297,8 @@ class Navigation():
 
 		# next_pos = self.get_closest_edge(unmapped_region)
 		self.display_map()
-		angle = self.get_direction(target)
+		rospy.loginfo('GETTING ANGLE')
+		angle = self.get_direction((target[1],target[0]))
 		self.rotate_bot(math.degrees(self.yaw) + math.degrees(angle) + 180)
 		self.move_bot(self.linear_spd, 0.0)
 		# self.rotate_bot(180)
