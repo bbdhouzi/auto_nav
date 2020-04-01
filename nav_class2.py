@@ -9,6 +9,12 @@ import time
 import rospy
 from geometry_msgs.msg import Twist
 
+def get_rot_coord(image, angle, pos):
+	image_center = tuple(np.array(image.shape[1::-1])/2)
+	rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
+	pos_mat = np.array([[pos[0]],[pos[1]], [1]])
+	return rot_mat.dot(pos_mat)
+
 class Navigation():
 	def __init__(self, linear_spd, angular_spd):
 		self.linear_spd = linear_spd
@@ -37,10 +43,10 @@ class Navigation():
 	def update_yaw(self, data):
 		self.yaw = data
 	
-	def update_lasercan_data(self, data):
+	def update_laserscan_data(self, data):
 		self.lidar_data = data
 	
-	def update_occ_grid(seld, grid, origin):
+	def update_occ_grid(self, grid, origin):
 		self.occ_grid = grid
 		self.map_origin = origin
 		self.map_height = len(grid)
@@ -57,9 +63,10 @@ class Navigation():
 	# returns false if no unmapped regions found
 	def get_nearest_unmapped_region(self):
 		rospy.loginfo('[NAV][OCC] Finding nearest unmapped region')
-		pos_to_check = self.bot_position
+		pos_to_check = [self.bot_position]
 
 		for cur_pos in pos_to_check:
+			# i,j = cur_pos[0],cur_pos[1]
 			i,j = cur_pos
 			rospy.loginfo('[MAP] %s', str(cur_pos))
 			for next_pos in [(i-1,j), (i,j+1), (i+1,j), (i,j-1)]:
@@ -83,9 +90,9 @@ class Navigation():
 	# update occ_map and occ_map_raw
 	def update_map(self):
 		ret, occ_map_raw = cv2.threshold(self.occ_grid, 2, 255, 0)
-		element = cv2,getStructuringElement(cv2.MORPH_CROSS, (3,3))
+		element = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))
 		self.occ_map_raw = cv2.dilate(occ_map_raw, element)
-		self.occ_map = cv2.cvtColor(self.occ_map_raw, cv2.COLOR_GRAY2RBG)
+		self.occ_map = cv2.cvtColor(self.occ_map_raw, cv2.COLOR_GRAY2RGB)
 	
 	# find the edges of the visible walls
 	def update_edges(self):
@@ -118,14 +125,26 @@ class Navigation():
 	
 	# check if there are any obstacles blocking the straight line path between two points
 	def path_blocked(self, cur_pos, next_pos):
+		self.update_map()
 		path_img = np.zeros((self.map_height, self.map_width, 1), np.uint8)
-		cv2.line(path_img, cur_pos, next_pos, 255, thickness=1, lineType=8)
+		overlay_img = np.zeros((self.map_height, self.map_width, 1), np.uint8)
+		cv2.line(path_img, (cur_pos[1], cur_pos[0]), (next_pos[1], next_pos[0]), 255, thickness=1, lineType=8)
+		cv2.circle(path_img, (cur_pos[1], cur_pos[0]), 3, 255, -1)
 
-		overlay_map = np.logical_and(path_img, self.occ_map_raw)
+		cv2.circle(path_img, (next_pos[1], next_pos[0]), 3, 128, -1)
+
+		ret, path_img_bit = cv2.threshold(path_img, 2, 255, 0)
+
+		# overlay_map = np.zeros()
+		overlay_map = cv2.bitwise_and(path_img_bit, self.occ_map_raw)
+		# rospy.loginfo('[NAV][PATH] %s', str(overlay_map))
+
+		overlay_img = cv2.bitwise_or(self.occ_map_raw, path_img)
 
 		cv2.imshow('path_check img', path_img)
-		cv2.imshow('occ_map' self.occ_map_raw)
-		cv2.imshow('overlay_map' overlay_map)
+		cv2.imshow('occ_map', self.occ_map_raw)
+		cv2.imshow('overlay_map', overlay_map)
+		cv2.imshow('overlay_img', overlay_img)
 		cv2.waitKey(0)
 
 		return np.any(overlay_map)
@@ -137,7 +156,7 @@ class Navigation():
 		cv2.circle(map_overlay, self.bot_position, 3, (0,0,255), -1)
 
 		unmapped_region = self.get_nearest_unmapped_region()
-		cv2.circle(map_overlay, unmapped_region, 3, (128,128,255). -1)
+		cv2.circle(map_overlay, unmapped_region, 3, (128,128,255), -1)
 
 		closest_edge = self.get_closest_edge(self.bot_position)
 		cv2.circle(map_overlay, closest_edge, 3, (0,255,0), -1)
@@ -160,8 +179,11 @@ class Navigation():
 		return math.atan2(i_dist, j_dist)
 
 	def test_func(self, data):
+		self.update_map()
 		unmapped_region = self.get_nearest_unmapped_region()
 		target = ()
+		# cv2.imshow('map raw', self.occ_map_raw)
+		# cv2.waitKey(0)
 		if self.path_blocked(self.bot_position, unmapped_region):
 			rospy.loginfo('[NAV][TEST] Path blocked')
 			target = self.get_closest_edge(unmapped_region)
