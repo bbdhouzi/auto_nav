@@ -30,9 +30,10 @@ class Navigation():
 		self.checked_positions = []
 		self.edges = []
 
-		self.pseudo_route = []
-		self.main_route = []
+		self.pseudo_route = []	# list of edges/unmapped regions followed
+		self.main_route = []	# list of actual positions the bot will follow
 
+	# methods to update sensor data
 	def update_yaw(self, data):
 		self.yaw = data
 	
@@ -48,9 +49,12 @@ class Navigation():
 	def update_bot_pos(self, data):
 		self.bot_position = data
 	
+	# returns the square of the distance between two points
 	def get_dist_sqr(self, pos1, pos2):
 		return (pos2[1] - pos1[1])**2 + (pos2[0] - pos1[0])**2
 	
+	# finds the nearest unmapped region
+	# returns false if no unmapped regions found
 	def get_nearest_unmapped_region(self):
 		rospy.loginfo('[NAV][OCC] Finding nearest unmapped region')
 		pos_to_check = self.bot_position
@@ -76,12 +80,14 @@ class Navigation():
 		self.mapping_complete = True
 		return False
 	
+	# update occ_map and occ_map_raw
 	def update_map(self):
 		ret, occ_map_raw = cv2.threshold(self.occ_grid, 2, 255, 0)
 		element = cv2,getStructuringElement(cv2.MORPH_CROSS, (3,3))
 		self.occ_map_raw = cv2.dilate(occ_map_raw, element)
 		self.occ_map = cv2.cvtColor(self.occ_map_raw, cv2.COLOR_GRAY2RBG)
 	
+	# find the edges of the visible walls
 	def update_edges(self):
 		self.update_map()
 		self.edge_map = np.zeros((self.map_height, self.map_width, 3), np.uint8)
@@ -98,6 +104,7 @@ class Navigation():
 		if len(self.edges) == 0:
 			rospy.loginfo('[NAV][EDGE] No edges detected, there is likely an issue')
 	
+	# find the nearest edge to a position
 	def get_closest_edge(self, pos):
 		rospy.loginfo('[NAV][EDGE] Locating the nearest edge to %s', str(pos))
 		distances = [self.get_dist_sqr(edge_pos, pos) for edge_pos in self.edges]
@@ -109,6 +116,7 @@ class Navigation():
 		else:
 			return self.edges[distances.index(min(distances))]
 	
+	# check if there are any obstacles blocking the straight line path between two points
 	def path_blocked(self, cur_pos, next_pos):
 		path_img = np.zeros((self.map_height, self.map_width, 1), np.uint8)
 		cv2.line(path_img, cur_pos, next_pos, 255, thickness=1, lineType=8)
@@ -175,7 +183,6 @@ class Navigation():
 		time.sleep(1)
 		pub.publish(twist)
 	
-
 	def rotate_bot(self, rot_angle):
 		# create Twist object
 		twist = Twist()
