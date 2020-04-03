@@ -8,8 +8,9 @@ import time
 
 import rospy
 from geometry_msgs.msg import Twist
+from visualization_msgs.msg import Marker
 
-angular_tolerance = 0.1
+angular_tolerance = 0.3
 
 class Navigation():
 	def __init__(self, linear_spd, angular_spd):
@@ -21,9 +22,13 @@ class Navigation():
 		self.bot_position = ()
 		self.occ_grid = np.array([])
 
+		self.bot_angular_range = range(-10,10)
+		self.stop_dist = 0.5
+
 		self.map_origin = ()
 		self.map_height = 0
 		self.map_width = 0
+		self.map_res = 0
 
 		self.mapping_complete = False
 
@@ -35,6 +40,8 @@ class Navigation():
 		self.pseudo_route = []	# list of edges/unmapped regions followed
 		self.main_route = []	# list of actual positions the bot will follow
 
+		self.prev_target = ()
+
 		self.dist_to_trgt = 0
 		self.prev_dist = 99999999
 
@@ -45,12 +52,13 @@ class Navigation():
 	def update_laserscan_data(self, data):
 		self.lidar_data = data
 	
-	def update_occ_grid(self, grid, origin):
+	def update_occ_grid(self, grid, origin, resolution):
 		self.occ_grid = grid
 		self.map_origin = origin
+		self.map_res = resolution
 		self.map_height = len(grid)
 		self.map_width = len(grid[0])
-	
+
 	def update_bot_pos(self, data):
 		self.bot_position = data
 	
@@ -76,13 +84,14 @@ class Navigation():
 		for cur_pos in pos_to_check:
 			# i,j = cur_pos[0],cur_pos[1]
 			i,j = cur_pos
-			rospy.loginfo('[MAP] %s', str(cur_pos))
+			# rospy.loginfo('[MAP] %s', str(cur_pos))
 			for next_pos in [(i-1,j), (i,j+1), (i+1,j), (i,j-1)]:
 				if next_pos not in self.checked_positions:
-					rospy.loginfo('[MAP] Checking pos %s', str(next_pos))
+					# rospy.loginfo('[MAP] Checking pos %s', str(next_pos))
 					if self.occ_grid[next_pos] == 0:
 						rospy.loginfo('[NAV][OCC] Found nearest unmapped region at %s', str(next_pos))
 						self.pseudo_route.insert(0, next_pos)
+						self.rviz_marker(next_pos, 0)
 						return next_pos
 					elif self.occ_grid[next_pos] == 1:
 						pos_to_check.append(next_pos)
@@ -217,26 +226,48 @@ class Navigation():
 		# c is AB
 		cos_rule_rhs = (self.get_dist_sqr(cur_pos, target_pos) + self.get_dist_sqr(cur_pos, yaw_pos) - self.get_dist_sqr(yaw_pos, target_pos))/(2*self.get_dist(cur_pos, target_pos)*self.get_dist(cur_pos, yaw_pos))
 		angle = math.acos(cos_rule_rhs)
-		# cv2.imshow('angle img', overlay_img)
-		# cv2.waitKey(0)
+		# if angle > math.pi/2:
+			# cv2.imshow('angle img', overlay_img)
+			# cv2.waitKey(0)
 		rospy.loginfo('[NAV][ANGLE] cos angle: %f', angle)
 		return angle
-
 
 	def target_reached(self, target):
 		cur_dist = self.get_dist(self.bot_position, target)
 		rospy.loginfo('[NAV][TRGT] Current distance to target: %d', cur_dist)
 		if cur_dist > self.dist_to_trgt:
 			rospy.loginfo('[NAV][TRGT] Moving the wrong way, recheck direction')
+			self.prev_dist = 999999999
 			return True
 		elif cur_dist > self.prev_dist:
 			rospy.loginfo('Went too far! recheck direction')
+			self.prev_dist = 999999999
 			return True
 		elif cur_dist < 2:
+			self.prev_dist = 999999999
 			return True
 		else:
+			
 			self.prev_dist = cur_dist
 			return False
+	def obstacle_check(self):
+		# lr2 = (self.lidar_data[0, self.bot_angular_range]!=0).nonzero()
+		lr2 = self.lidar_data[0,self.bot_angular_range]
+		rospy.loginfo(len(lr2))
+		if lr2[0] == 'inf':
+			rospy.loginfo(2)
+		elif lr2[0] == np.inf:
+			rospy.loginfo(3)
+		else:
+			rospy.loginfo(4)
+
+		list_to_check = [x < self.stop_dist and not (x == 0 or x == np.inf) for x in lr2]
+		rospy.loginfo(list_to_check)
+		if np.any(list_to_check):
+			rospy.loginfo(lr2[0])
+			rospy.loginfo('[NAV][TRGT] Obstacle in front!, rechecking direction')
+			return True
+		return False
 
 	def display_angles(self):
 		# pass
@@ -303,9 +334,16 @@ class Navigation():
 
 	def rotate_to_point(self, pos):
 		rot_angle = self.get_angle2(pos)
+		# if rot_angle > math.pi/2:
+			# self.rotate_bot(self.yaw+math.pi)
+			# rot_angle = self.get_angle2(pos)
+
 		while rot_angle > angular_tolerance:
 			self.rotate_bot(rot_angle)
 			rot_angle = self.get_angle2(pos)
+			# if rot_angle > math.pi/2:
+				# self.rotate_bot(self.yaw+math.pi)
+				# rot_angle = self.get_angle2(pos)
 
 
 	def test_func2(self, data):
@@ -315,56 +353,75 @@ class Navigation():
 		# self.display_angles()
 		# self.test_func("")
 
+	def get_furthest_visible(self, pos):
+		closest_edge = self.get_closest_edge(self.swap_xy(pos))
+		i,j = closest_edge
+		length = 2
+		corners = [(i-length,j-length),(i-length,j+length),(i+length,j+length),(i+length,j-length)]
+		distances = [0,0,0,0]
+		dist_i = 0
+
+		# overlay_img = np.zeros((self.map_height, self.map_width, 3), np.uint8)
+		# cv2.circle(overlay_img, self.swap_xy(self.bot_position), 3, (0,0,255), -1)
+
+		rospy.loginfo(corners)
+		for corner in corners:
+			# cv2.circle(overlay_img, self.swap_xy(corner), 2, (0,255,0), -1)
+			if not self.path_blocked(self.bot_position, corner):
+				distances[dist_i] = self.get_dist_sqr(corner)
+			dist_i += 1
+
+		rospy.loginfo([x == 0 for x in distances])
+		if all(x == 0 for x in distances):
+			# return self.get_furthest_visible(self.bot_position)
+			pass
+		# overlay_img = cv2.bitwise_or(self.edge_map, overlay_img)
+		# overlay_img = cv2.bitwise_or(self.occ_map, overlay_img)
+
+		# cv2.imshow('overlay_img', overlay_img)
+		# cv2.waitKey(3)
+		return self.swap_xy(corners[distances.index(max(distances))])
+
+	def pick_direction(self):
+		unmapped_region = self.get_nearest_unmapped_region()
+		self.rviz_marker(unmapped_region, 0)
+		target = ()
+		if self.path_blocked(self.bot_position, unmapped_region):
+			target = self.get_furthest_visible(unmapped_region)
+			self.rviz_marker(target, 1)
+		else:
+			target = unmapped_region
+
+		if self.prev_target == ():
+			self.prev_target = target
+			return True, target, self.get_angle2(target)
+
+		if self.get_dist(target, self.prev_target) > 2:
+			self.prev_target = target
+			return True, target, self.get_angle2(target)
+		else:
+			return False, target, self.get_angle2(target)
 
 	def test_func(self, data):
-		self.update_map()
-		unmapped_region = self.get_nearest_unmapped_region()
-		target = ()
-		# cv2.imshow('map raw', self.occ_map_raw)
-		# cv2.waitKey(0)
-		if self.path_blocked(self.bot_position, unmapped_region):
-			rospy.loginfo('[NAV][TEST] Path blocked')
-			target = self.get_closest_edge(unmapped_region)
-		else:
-			rospy.loginfo('[NAV][TEST] Path free')
-			target = unmapped_region
-		rospy.loginfo('[NAV][TEST] target position: %s', str(target))
-		# self.display_map()
-		# angle = self.get_angle(self.swap_xy(self.bot_position),self.swap_xy(target))
-		angle = self.get_angle2(target)
-		rospy.loginfo('[NAV][TEST] rotation angle: %d', angle)
-
-		self.dist_to_trgt = self.get_dist(self.bot_position, target)
-
-		self.rotate_bot(angle)
-		self.move_bot(self.linear_spd, 0.0)
-
-
 		rate = rospy.Rate(1)
-		loop_n = 0
 		while True:
-			if not self.target_reached(target):
-				rospy.loginfo('loop iter: %d', loop_n)
-				loop_n += 1
-				rate.sleep()
-			else:
+			change, target, angle = self.pick_direction()
+			if change:
 				self.move_bot(0.0,0.0)
-				unmapped_region = self.get_nearest_unmapped_region()
-				if self.path_blocked(self.bot_position, unmapped_region):
-					rospy.loginfo('[NAV][TEST][LOOP] PATH blocked')
-					target = self.get_closest_edge(unmapped_region)
-				else:
-					rospy.loginfo('[NAV][TEST][LOOP] PATH free')
-					target = unmapped_region
-				angle = self.get_angle2(target)
-				self.dist_to_trgt = self.get_dist(self.bot_position, target)
-				rospy.loginfo('[NAV][TEST] rotation angle: %d', angle)
-				rospy.loginfo('[NAV][TRGT] distance to target: %d', self.dist_to_trgt)
+				self.rotate_to_point(target)
 
-				self.rotate_bot(angle)
-				self.move_bot(self.linear_spd, 0.0)
+			if self.obstacle_check():
+				self.move_bot(-self.linear_spd, 0.0)
+				time.sleep(1)
+				_, target, angle = self.pick_direction()
+				self.move_bot(0.0,0.0)
+				self.rotate_bot(angle+0.2)
 
-		self.move_bot(0.0,0.0)
+			self.move_bot(self.linear_spd,0.0)
+
+			# if not self.target_reached(target):
+			rate.sleep()
+
 
 	def move_bot(self, linear_spd, angular_spd):
 		pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
@@ -389,14 +446,16 @@ class Navigation():
 		c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
 		# calculate desired yaw
 		# target_yaw = math.radians(rot_angle)
-		target_yaw = rot_angle
+		target_yaw = current_yaw + rot_angle
+		# target_yaw = rot_angle
 		# convert to complex notation
 		c_target_yaw = complex(math.cos(target_yaw),math.sin(target_yaw))
 		rospy.loginfo(['Desired: ' + str(math.degrees(cmath.phase(c_target_yaw)))])
 		# divide the two complex numbers to get the change in direction
 		c_change = c_target_yaw / c_yaw
 		# get the sign of the imaginary component to figure out which way we have to turn
-		c_change_dir = np.sign(c_change.imag)
+		# c_change_dir = np.sign(c_change.imag)
+		c_change_dir = 1.0 if rot_angle > math.pi else -1.0
 		# set linear speed to zero so the TurtleBot rotates on the spot
 		twist.linear.x = 0.0
 		# set the direction to rotate
@@ -411,12 +470,13 @@ class Navigation():
 		# rospy.loginfo(['c_change_dir: ' + str(c_change_dir) + ' c_dir_diff: ' + str(c_dir_diff)])
 		# if the rotation direction was 1.0, then we will want to stop when the c_dir_diff
 		# becomes -1.0, and vice versa
+		rospy.loginfo('[NAV][ROT] Turning to face %f', target_yaw)
 		while(c_change_dir * c_dir_diff > 0):
 			# get current yaw angle
 			current_yaw = np.copy(self.yaw)
 			# get the current yaw in complex form
 			c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
-			rospy.loginfo('While Yaw: %f Target Yaw: %f', math.degrees(current_yaw), math.degrees(target_yaw))
+			# rospy.loginfo('While Yaw: %f Target Yaw: %f', math.degrees(current_yaw), math.degrees(target_yaw))
 			# get difference in angle between current and target
 			c_change = c_target_yaw / c_yaw
 			# get the sign to see if we can stop
@@ -431,3 +491,35 @@ class Navigation():
 		time.sleep(1)
 		# pub.publish(twist)
 		self.move_bot(0.0,0.0)
+
+	def rviz_marker(self, pos, marker_type):
+		pos_x = pos[0] * self.map_res + self.map_origin.x
+		pos_y = pos[1] * self.map_res + self.map_origin.y
+
+		map_pub = rospy.Publisher('nav_markers', Marker, queue_size=10)
+		rospy.sleep(1)
+		nav_marker = Marker()
+		nav_marker.header.frame_id = "map"
+		nav_marker.ns = "marker_test"
+		nav_marker.id = marker_type
+		nav_marker.pose.position.x = pos_x
+		nav_marker.pose.position.y = pos_y
+		nav_marker.type = nav_marker.CUBE
+		nav_marker.action = nav_marker.MODIFY
+		nav_marker.scale.x = 0.1
+		nav_marker.scale.y = 0.1
+		nav_marker.scale.z = 0.1
+		nav_marker.pose.orientation.w = 1.0
+		if marker_type == 0:
+			nav_marker.color.r = 1.0
+			nav_marker.color.g = 0.0
+			nav_marker.color.b = 0.0
+		elif marker_type == 1:
+			nav_marker.color.r = 0.0
+			nav_marker.color.b = 0.0
+			nav_marker.color.g = 1.0
+
+		nav_marker.color.a = 1.0
+
+		map_pub.publish(nav_marker)
+		rospy.loginfo('Published marker at %s', str(pos))

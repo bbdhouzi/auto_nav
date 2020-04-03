@@ -77,7 +77,7 @@ def occ_cb(msg, tf_buf):
 
 	# navigator.update_bot_pos((bot_pos[1],bot_pos[0]))
 	navigator.update_bot_pos(bot_pos)
-	navigator.update_occ_grid(occ_grid, map_origin)
+	navigator.update_occ_grid(occ_grid, map_origin, map_res)
 
 def stopbot():
     # publish to cmd_vel to move TurtleBot
@@ -109,7 +109,7 @@ def mapper():
 	# time.sleep(1)
 
 	# navigator.display_map()
-	navigator.test_func2('')
+	navigator.test_func('')
 
 	# navigator.map_region()
 	# navigator.test_func("")

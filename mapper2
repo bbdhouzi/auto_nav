@@ -228,3 +228,137 @@ if self.path_blocked(self._route[0]):
 elif self.target_reached(self._route[0]):
 	self.move_circular(self._route[0])
 rate.sleep()
+
+
+
+
+rate = rospy.Rate(1)
+		main_route = []
+		actual_route = []
+		next_pos = self.get_nearest_unmapped_region()
+		main_route.insert(0,next_pos)
+		rospy.loginfo(next_pos)
+		rospy.loginfo(main_route)
+		actual_next_pos = self.set_target(next_pos)
+		actual_route.insert(0, actual_next_pos)
+		self.set_marker(next_pos)
+		angle = self.get_direction(actual_route[0])
+		self.rotate_bot(angle)
+		self.move_bot(1.00,0.0)
+		rate.sleep()
+		n = 0
+		while True:
+			n += 1
+			rospy.loginfo('nth loop: %d, %s', n, str(main_route))
+			if not self.target_reached(main_route[0]):
+				rospy.loginfo('[%d]target not reached', n)
+				next_pos = self.get_nearest_unmapped_region()
+				main_route.append(next_pos)
+				actual_next_pos = self.set_target()
+				actual_route.insert(0, actual_next_pos)
+				self.set_marker(cur_point)
+				angle = self.get_direction(actual_route[0])
+				self.rotate_bot(angle)
+				self.move_bot(1.00,0.0)
+				rate.sleep()
+			else:
+				rospy.loginfo('[%d]target reached', n)
+				self.move_bot(0,0)
+				main_route.pop()
+				return
+
+		# pass
+		# self.path_blocked(data)
+		# self.rotate_bot(30)
+		# self.move_bot(self.linear_spd, 0.0)
+		# time.sleep(5)
+		# self.move_bot(0.0, 0.0)
+		# rospy.loginfo(next_pos)
+		# self.set_target(next_pos)
+		# self.move_bot()
+		# next_pos = (230,201)
+
+		# while not self._mapping_complete:
+		# 	next_pos = self.get_nearest_unmapped_region()
+		# 	angle = self.get_direction(next_pos)
+		# 	self.rotate_bot(angle)
+		# 	self.set_marker(next_pos)
+		# 	self.move_bot(self.linear_spd, 0.0)
+
+		# 	rate = rospy.Rate(1)
+		# 	nloops = 0
+		# 	while True:
+		# 		if not self.target_reached(self._main_route[0]):
+		# 			rospy.loginfo('checking %d', nloops)
+		# 			nloops += 1
+		# 			rate.sleep()
+		# 		else:
+		# 			self.move_bot(0.0,0.0)
+		
+		# rospy.loginfo("mapping done")
+		
+		# self.move_bot(0.0,0.0)
+		# rospy.loginfo('[NAV] reached target')
+		# self.set_marker((0,0),1)
+		# self.set_marker((self._bot_position[0]-10,self._bot_position[1]-10), 2)
+		# self.set_marker((0.15, 0), 2)
+		# self.set_marker(next_pos, 2)
+
+
+def test_func(self, data):
+		self.update_map()
+		unmapped_region = self.get_nearest_unmapped_region()
+		target = ()
+
+		if self.path_blocked(self.bot_position, unmapped_region):
+			rospy.loginfo('[NAV][TEST] Path blocked')
+			# closest_edge = self.get_closest_edge(unmapped_region)
+			target = self.get_furthest_visible(unmapped_region)
+		else:
+			rospy.loginfo('[NAV][TEST] Path free')
+			target = unmapped_region
+		rospy.loginfo('[NAV][TEST] target position: %s', str(target))
+
+		self.dist_to_trgt = self.get_dist(self.bot_position, target)
+
+		# self.rviz_marker(target, 1)
+		self.rotate_to_point(target)
+		self.move_bot(self.linear_spd, 0.0)
+
+		rate = rospy.Rate(1)
+		while True:
+			unmapped_region = self.get_nearest_unmapped_region()
+			if self.obstacle_check():
+				rospy.loginfo('[NAV][TEST] Obstacle detected!')
+				self.move_bot(-self.linear_spd, 0.0)
+				time.sleep(2)
+				self.move_bot(0.0,0.0)
+				rot_angle = self.get_angle2(unmapped_region)
+				self.rotate_bot(rot_angle+0.2)
+				self.move_bot(self.linear_spd, 0.0)
+			if not self.target_reached(target):
+				rate.sleep()
+			else:
+				self.move_bot(0.0,0.0)
+				# unmapped_region = self.get_nearest_unmapped_region()
+				if self.path_blocked(self.bot_position, unmapped_region):
+					rospy.loginfo('[NAV][TEST][LOOP] PATH blocked')
+					# target = self.get_closest_edge(unmapped_region)
+					target = self.get_furthest_visible(unmapped_region)
+					self.rviz_marker(target, 1)
+				else:
+					rospy.loginfo('[NAV][TEST][LOOP] PATH free')
+					target = unmapped_region
+				# angle = self.get_angle2(target)
+				self.dist_to_trgt = self.get_dist(self.bot_position, target)
+				# rospy.loginfo('[NAV][TEST] rotation angle: %d', angle)
+				rospy.loginfo('[NAV][TRGT] distance to target: %d', self.dist_to_trgt)
+
+				# self.rotate_bot(angle)
+				# self.rviz_marker(target, 1)
+				self.rotate_to_point(target)
+				# if self.get_nearest_unmapped_region() != unmapped_region:
+					# break
+				self.move_bot(self.linear_spd, 0.0)
+
+		self.move_bot(0.0,0.0)
