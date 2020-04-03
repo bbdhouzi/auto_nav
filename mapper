@@ -109,7 +109,7 @@ def mapper():
 	# time.sleep(1)
 
 	# navigator.display_map()
-	navigator.test_func('')
+	navigator.test_func2('')
 
 	# navigator.map_region()
 	# navigator.test_func("")

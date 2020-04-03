@@ -9,11 +9,7 @@ import time
 import rospy
 from geometry_msgs.msg import Twist
 
-def get_rot_coord(image, angle, pos):
-	image_center = tuple(np.array(image.shape[1::-1])/2)
-	rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
-	pos_mat = np.array([[pos[0]],[pos[1]], [1]])
-	return rot_mat.dot(pos_mat)
+angular_tolerance = 0.1
 
 class Navigation():
 	def __init__(self, linear_spd, angular_spd):
@@ -219,7 +215,8 @@ class Navigation():
 		# a is BC
 		# b is AC
 		# c is AB
-		angle = (self.get_dist_sqr(cur_pos, target_pos) + self.get_dist_sqr(cur_pos, yaw_pos) - self.get_dist_sqr(yaw_pos, target_pos))/(2*self.get_dist(cur_pos, target_pos)*self.get_dist(cur_pos, yaw_pos))
+		cos_rule_rhs = (self.get_dist_sqr(cur_pos, target_pos) + self.get_dist_sqr(cur_pos, yaw_pos) - self.get_dist_sqr(yaw_pos, target_pos))/(2*self.get_dist(cur_pos, target_pos)*self.get_dist(cur_pos, yaw_pos))
+		angle = math.acos(cos_rule_rhs)
 		# cv2.imshow('angle img', overlay_img)
 		# cv2.waitKey(0)
 		rospy.loginfo('[NAV][ANGLE] cos angle: %f', angle)
@@ -261,7 +258,10 @@ class Navigation():
 
 		overlay_img = cv2.bitwise_or(self.occ_map, overlay_img)
 
-		self.rotate_bot(req_angle)
+		while req_angle > 0.08:
+			rospy.loginfo('[NAV][ANGLE] req_angle: %f', req_angle)
+			self.rotate_bot(req_angle)
+			req_angle = self.get_angle2(unmapped_region)
 
 		yaw_pi = int(self.bot_position[1] + length * math.sin(self.yaw))
 		yaw_pj = int(self.bot_position[0] + length * math.cos(self.yaw))
@@ -285,7 +285,10 @@ class Navigation():
 
 		overlay_img = cv2.bitwise_or(self.occ_map, overlay_img)
 
-		self.rotate_bot(req_angle)
+		while req_angle > 0.1:
+			rospy.loginfo('[NAV][ANGLE] req_angle: %f', req_angle)
+			self.rotate_bot(req_angle)
+			req_angle = self.get_angle2(unmapped_region)
 
 		yaw_pi = int(self.bot_position[1] + length * math.sin(self.yaw))
 		yaw_pj = int(self.bot_position[0] + length * math.cos(self.yaw))
@@ -297,6 +300,12 @@ class Navigation():
 	
 		cv2.imshow('overlay_img', overlay_img)
 		cv2.waitKey(0)
+
+	def rotate_to_point(self, pos):
+		rot_angle = self.get_angle2(pos)
+		while rot_angle > angular_tolerance:
+			self.rotate_bot(rot_angle)
+			rot_angle = self.get_angle2(pos)
 
 
 	def test_func2(self, data):
@@ -369,7 +378,7 @@ class Navigation():
 		# create Twist object
 		twist = Twist()
 		# set the update rate to 1 Hz
-		rate = rospy.Rate(1)
+		rate = rospy.Rate(3)
 	
 		# get current yaw angle
 		current_yaw = np.copy(self.yaw)
