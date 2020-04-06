@@ -40,7 +40,13 @@ class Navigation():
 		self.pseudo_route = []	# list of edges/unmapped regions followed
 		self.main_route = []	# list of actual positions the bot will follow
 
+		self.unmapped_region = ()
 		self.prev_target = ()
+		self.cur_target = ()
+		self.target_changed = False
+		self.angle_to_target = 0.0
+		self.inf_visible = False
+		self.in_motion = False
 
 		self.dist_to_trgt = 0
 		self.prev_dist = 99999999
@@ -51,13 +57,15 @@ class Navigation():
 	
 	def update_laserscan_data(self, data):
 		self.lidar_data = data
-	
+		self.inf_visible = (np.inf in data)
+
 	def update_occ_grid(self, grid, origin, resolution):
 		self.occ_grid = grid
 		self.map_origin = origin
 		self.map_res = resolution
 		self.map_height = len(grid)
 		self.map_width = len(grid[0])
+		self.pick_direction()
 
 	def update_bot_pos(self, data):
 		self.bot_position = data
@@ -134,8 +142,8 @@ class Navigation():
 		self.update_edges()
 		rospy.loginfo('[NAV][EDGE] Locating the nearest edge to %s', str(pos))
 		distances = [self.get_dist_sqr(edge_pos, pos) for edge_pos in self.edges]
-		rospy.loginfo('DISTANCES: ')
-		rospy.loginfo(distances)
+		# rospy.loginfo('DISTANCES: ')
+		# rospy.loginfo(distances)
 		if len(distances) == 0:
 			rospy.loginfo('error: No edges detected?')
 			return False
@@ -233,7 +241,7 @@ class Navigation():
 		return angle
 
 	def target_reached(self, target):
-		cur_dist = self.get_dist(self.bot_position, target)
+		cur_dist = self.get_dist(self.bot_position, self.cur_target)
 		rospy.loginfo('[NAV][TRGT] Current distance to target: %d', cur_dist)
 		if cur_dist > self.dist_to_trgt:
 			rospy.loginfo('[NAV][TRGT] Moving the wrong way, recheck direction')
@@ -247,13 +255,17 @@ class Navigation():
 			self.prev_dist = 999999999
 			return True
 		else:
-			
 			self.prev_dist = cur_dist
+			if cur_dist > 4:
+				self.move_bot(2*self.linear_spd, 0.0)
+			elif cur_dist > 6:
+				self.move_bot(3*self.linear_spd, 0.0)
 			return False
+
 	def obstacle_check(self):
 		# lr2 = (self.lidar_data[0, self.bot_angular_range]!=0).nonzero()
 		lr2 = self.lidar_data[0,self.bot_angular_range]
-		rospy.loginfo(len(lr2))
+		# rospy.loginfo(len(lr2))
 		if lr2[0] == 'inf':
 			rospy.loginfo(2)
 		elif lr2[0] == np.inf:
@@ -262,7 +274,7 @@ class Navigation():
 			rospy.loginfo(4)
 
 		list_to_check = [x < self.stop_dist and not (x == 0 or x == np.inf) for x in lr2]
-		rospy.loginfo(list_to_check)
+		# rospy.loginfo(list_to_check)
 		if np.any(list_to_check):
 			rospy.loginfo(lr2[0])
 			rospy.loginfo('[NAV][TRGT] Obstacle in front!, rechecking direction')
@@ -345,10 +357,45 @@ class Navigation():
 				# self.rotate_bot(self.yaw+math.pi)
 				# rot_angle = self.get_angle2(pos)
 
-
 	def test_func2(self, data):
-		self.update_map()
-		self.display_angles()
+		if np.inf in self.lidar_data:
+			rospy.loginfo('V shape expected')
+		else:
+			rospy.loginfo('eh probs dont have it')
+		# self.update_edges()
+
+		# ret, occ_map_unknown = cv2.threshold(self.occ_grid, 0, 255, 0)
+		# map_overlay = np.zeros((self.map_height, self.map_width, 3), np.uint8)
+		# _, contours_ret, hierarchy = cv2.findContours(occ_map_unknown, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+
+		# # cv2.drawContours(map_overlay,contours_ret, -1, (0,255,0))
+		# if cv2.isContourConvex(contours_ret[0]):
+		# 	rospy.loginfo('lol it is')
+
+		# for contour in contours_ret:
+		# 	approx = cv2.approxPolyDP(contour, 0.01 * cv2.arcLength(contour, True), True)
+		# 	n = approx.ravel()
+		# 	edges = []
+		# 	distances = []
+		# 	for x in range(0,len(n),2):
+		# 		i = n[x]
+		# 		j = n[x+1]
+		# 		edges.append((i,j))
+		# 		distances.append(self.get_dist())
+
+		# 	g = 0
+		# 	for i in range(len(edges)-1):
+		# 		cv2.line(map_overlay, edges[i], edges[i+1], (128,g,0), lineType=8, thickness=1)
+		# 		g += 40
+		# 	# cv2.drawContours(map_overlay, approx, -1, (255,0,0))
+		# 	cv2.circle(map_overlay, self.swap_xy(self.unmapped_region), 3, (0,0,255), -1)
+
+		# # cv2.imshow('thresh', occ_map_unknown)
+		# cv2.imshow('overlay', map_overlay)
+		# cv2.waitKey(0)
+
+
+		# self.display_angles()
 		# self.rotate_bot(math.degrees(60))
 		# self.display_angles()
 		# self.test_func("")
@@ -364,14 +411,14 @@ class Navigation():
 		# overlay_img = np.zeros((self.map_height, self.map_width, 3), np.uint8)
 		# cv2.circle(overlay_img, self.swap_xy(self.bot_position), 3, (0,0,255), -1)
 
-		rospy.loginfo(corners)
+		# rospy.loginfo(corners)
 		for corner in corners:
 			# cv2.circle(overlay_img, self.swap_xy(corner), 2, (0,255,0), -1)
 			if not self.path_blocked(self.bot_position, corner):
 				distances[dist_i] = self.get_dist_sqr(corner)
 			dist_i += 1
 
-		rospy.loginfo([x == 0 for x in distances])
+		# rospy.loginfo([x == 0 for x in distances])
 		if all(x == 0 for x in distances):
 			# return self.get_furthest_visible(self.bot_position)
 			pass
@@ -385,6 +432,7 @@ class Navigation():
 	def pick_direction(self):
 		unmapped_region = self.get_nearest_unmapped_region()
 		self.rviz_marker(unmapped_region, 0)
+		self.unmapped_region = unmapped_region
 		target = ()
 		if self.path_blocked(self.bot_position, unmapped_region):
 			target = self.get_furthest_visible(unmapped_region)
@@ -392,39 +440,92 @@ class Navigation():
 		else:
 			target = unmapped_region
 
-		if self.prev_target == ():
-			self.prev_target = target
-			return True, target, self.get_angle2(target)
-
-		if self.get_dist(target, self.prev_target) > 2:
-			self.prev_target = target
-			return True, target, self.get_angle2(target)
+		self.cur_target = target
+		if self.get_dist(self.cur_target, target) < 2:
+			self.target_changed = False
 		else:
-			return False, target, self.get_angle2(target)
+			self.target_changed = True
+		self.angle_to_target = self.get_angle2(target)
+
+		# if self.prev_target == ():
+		# 	self.prev_target = target
+		# 	return True, target, self.get_angle2(target)
+
+		# if self.get_dist(target, self.prev_target) > 2:
+		# 	self.prev_target = target
+		# 	return True, target, self.get_angle2(target)
+		# else:
+		# 	return False, target, self.get_angle2(target)
 
 	def test_func(self, data):
-		rate = rospy.Rate(1)
+		rate = rospy.Rate(0.3)
 		while True:
-			change, target, angle = self.pick_direction()
-			if change:
+			if self.cur_target == ():
+				rate.sleep()
+
+			if self.inf_visible and self.in_motion:
+				self.move_bot(3 * self.linear_spd, 0.0)
+				rate.sleep()
+			# change, target, angle = self.pick_direction()
+			if self.target_changed:
+				self.target_changed = False
 				self.move_bot(0.0,0.0)
-				self.rotate_to_point(target)
+				self.rotate_to_point(self.cur_target)
 
 			if self.obstacle_check():
 				self.move_bot(-self.linear_spd, 0.0)
 				time.sleep(1)
-				_, target, angle = self.pick_direction()
+				# _, target, angle = self.pick_direction()
 				self.move_bot(0.0,0.0)
-				self.rotate_bot(angle+0.2)
+				self.rotate_bot(self.angle_to_target+0.2)
+				self.move_bot(self.linear_spd,0.0)
+				time.sleep(1)
 
 			self.move_bot(self.linear_spd,0.0)
 
-			# if not self.target_reached(target):
-			rate.sleep()
+			if self.target_reached(self.cur_target):
+				self.target_changed = True
+			else:
+				rate.sleep()
+
+	def map_region(self):
+		rate = rospy.Rate(0.3)
+		while True:
+			if self.cur_target == ():
+				rate.sleep()
+
+			if self.inf_visible and self.in_motion:
+				self.move_bot(3 * self.linear_spd, 0.0)
+				rate.sleep()
+			# change, target, angle = self.pick_direction()
+			if self.target_changed:
+				self.target_changed = False
+				self.move_bot(0.0,0.0)
+				self.rotate_to_point(self.cur_target)
+
+			if self.obstacle_check():
+				self.move_bot(-self.linear_spd, 0.0)
+				time.sleep(1)
+				# _, target, angle = self.pick_direction()
+				self.move_bot(0.0,0.0)
+				self.rotate_bot(self.angle_to_target+0.2)
+				self.move_bot(self.linear_spd,0.0)
+				time.sleep(1)
+
+			self.move_bot(self.linear_spd,0.0)
+
+			if self.target_reached(self.cur_target):
+				self.target_changed = True
+			else:
+				rate.sleep()
 
 
 	def move_bot(self, linear_spd, angular_spd):
 		pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
+		if linear_spd != 0.0 or angular_spd != 0.0:
+			self.in_motion = True
+		else:
+			self.in_motion = False
 		twist = Twist()
 		twist.linear.x = linear_spd
 		twist.angular.z = angular_spd
@@ -482,6 +583,16 @@ class Navigation():
 			# get the sign to see if we can stop
 			c_dir_diff = np.sign(c_change.imag)
 			# rospy.loginfo(['c_change_dir: ' + str(c_change_dir) + ' c_dir_diff: ' + str(c_dir_diff)])
+			rem_ang_dist = target_yaw - current_yaw
+			if rem_ang_dist > 3:
+				self.move_bot(0.0,3 * self.angular_spd * c_change_dir)
+			elif rem_ang_dist > 2:
+				self.move_bot(0.0,2.5 * self.angular_spd* c_change_dir)
+			elif rem_ang_dist > 1:
+				self.move_bot(0.0,1.5 * self.angular_spd* c_change_dir)
+			else:
+				self.move_bot(0.0,self.angular_spd* c_change_dir)
+
 			rate.sleep()
 	
 		rospy.loginfo(['End Yaw: ' + str(math.degrees(current_yaw))])
