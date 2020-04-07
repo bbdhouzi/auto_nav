@@ -6,6 +6,9 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 
+from picamera.array import PiRGBArray
+from picamera import PiCamera
+
 import time
 
 frame_rate = 2
@@ -14,17 +17,25 @@ prev = 0
 def main():
     rospy.init_node('cam_test', anonymous=True)
     img_pub = rospy.Publisher('img_topic', Image, queue_size=10)
-    cam = cv2.VideoCapture(0)
+    ##cam = cv2.VideoCapture(0)
     bridge = CvBridge()
     rate = rospy.Rate(5)
-
+    
+    camera = PiCamera()
+    rawCapture = PiRGBArray(camera)
     while not rospy.is_shutdown():
         time_elapsed = time.time() - prev
-        ret, frame = cam.read()
+        #ret, frame = cam.read()
         #cv2.imshow('frame', frame)
         
         # if time_elapsed > 1/frame_rate:
-        img_pub.publish(bridge.cv2_to_imgmsg(frame, "bgr8"))
+
+        camera.capture(rawCapture, format="bgr")
+        image = rawCapture.array
+
+
+        img_pub.publish(bridge.cv2_to_imgmsg(image, "bgr8"))
+        #img_pub.publish(bridge.cv2_to_imgmsg(frame, "bgr8"))
 
         #if cv2.waitKey(1) & 0xFF == ord('q'):
         #    break

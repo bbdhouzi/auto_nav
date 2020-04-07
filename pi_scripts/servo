@@ -33,13 +33,16 @@ def change_pos(angle_str1, angle_str2):
     p1.stop()
 
     p2.start(duty_cycle2)
+    time.sleep(0.6)
+    #p2.stop()
+    #p2.start(0)
+    p2.ChangeDutyCycle(2.5)
     time.sleep(0.5)
-    p2.start(0)
     p2.stop()
 
 try:
     while True:
-        input_angle1, input_angle2 = input('please enter angle: ').splt()
+        input_angle1, input_angle2 = input('please enter angle: ').split()
         change_pos(input_angle1, input_angle2)
         input_angle1, input_angle2 = 0, 0
 except KeyboardInterrupt:
