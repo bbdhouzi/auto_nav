@@ -96,12 +96,9 @@ class Navigation():
 		self.checked_positions = []
 
 		for cur_pos in pos_to_check:
-			# i,j = cur_pos[0],cur_pos[1]
 			i,j = cur_pos
-			# rospy.loginfo('[MAP] %s', str(cur_pos))
 			for next_pos in [(i-1,j), (i,j+1), (i+1,j), (i,j-1)]:
 				if next_pos not in self.checked_positions:
-					# rospy.loginfo('[MAP] Checking pos %s', str(next_pos))
 					if self.occ_grid[next_pos] == 0:
 						rospy.loginfo('[NAV][OCC] Found nearest unmapped region at %s', str(next_pos))
 						self.pseudo_route.insert(0, next_pos)
@@ -148,8 +145,6 @@ class Navigation():
 		self.update_edges()
 		rospy.loginfo('[NAV][EDGE] Locating the nearest edge to %s', str(pos))
 		distances = [self.get_dist_sqr(edge_pos, pos) for edge_pos in self.edges]
-		# rospy.loginfo('DISTANCES: ')
-		# rospy.loginfo(distances)
 		if len(distances) == 0:
 			rospy.loginfo('error: No edges detected?')
 			return False
@@ -168,17 +163,9 @@ class Navigation():
 
 		ret, path_img_bit = cv2.threshold(path_img, 2, 255, 0)
 
-		# overlay_map = np.zeros()
 		overlay_map = cv2.bitwise_and(path_img_bit, self.occ_map_raw)
-		# rospy.loginfo('[NAV][PATH] %s', str(overlay_map))
 
 		overlay_img = cv2.bitwise_or(self.occ_map_raw, path_img)
-
-		# cv2.imshow('path_check img', path_img)
-		# cv2.imshow('occ_map', self.occ_map_raw)
-		# cv2.imshow('overlay_map', overlay_map)
-		# cv2.imshow('overlay_img', overlay_img)
-		# cv2.waitKey(0)
 
 		return np.any(overlay_map)
 	
@@ -203,33 +190,12 @@ class Navigation():
 		# cv2.imshow('map_overlay'. self.map_overlay)
 		cv2.imshow('final', occ_map_disp)
 		cv2.waitKey(0)
-	
-	def get_angle(self, cur_pos_o, next_pos_o):
-		cur_pos = self.swap_xy(cur_pos_o)
-		next_pos = self.swap_xy(next_pos_o)
-
-		i_dist = next_pos[0] - cur_pos[0]
-		j_dist = next_pos[1] - cur_pos[1]
-
-		rospy.loginfo('[NAV][ANGLE] cur_pos: %s\tnext_pos: %s', str(cur_pos), str(next_pos))
-		rospy.loginfo('[NAV][ANGLE] tan %d/%d', i_dist, j_dist)
-		return math.atan2(i_dist, j_dist)
 
 	# get angle need to turn, accounting for yaw
-	def get_angle2(self, target_pos_o):
+	def get_angle(self, target_pos_o):
 		cur_pos = self.swap_xy(self.bot_position)
 		target_pos = self.swap_xy(target_pos_o)
 		yaw_pos = (int(cur_pos[0] + 10*math.sin(self.yaw)), int(cur_pos[1] + 10*math.cos(self.yaw)))
-
-		# overlay_img = np.zeros((self.map_height, self.map_width, 3), np.uint8)
-		# cv2.circle(overlay_img, cur_pos, 3, (0,0,255), -1)
-		# cv2.circle(overlay_img, target_pos, 3, (0,255,0), -1)
-		# cv2.circle(overlay_img, yaw_pos, 3, (255,0,0), -1)
-
-		# cv2.line(overlay_img, yaw_pos, target_pos, (128,128,0), thickness=1, lineType=8)
-		# cv2.line(overlay_img, cur_pos, target_pos, (128,0,128), thickness=1, lineType=8)
-		# cv2.line(overlay_img, cur_pos, yaw_pos, (0,128,128), thickness=1, lineType=8)
-		# overlay_img = cv2.bitwise_or(self.occ_map, overlay_img)
 
 		# using cos rule, angle to find is angle
 		# A is bots position
@@ -239,10 +205,12 @@ class Navigation():
 		# b is AC
 		# c is AB
 		cos_rule_rhs = (self.get_dist_sqr(cur_pos, target_pos) + self.get_dist_sqr(cur_pos, yaw_pos) - self.get_dist_sqr(yaw_pos, target_pos))/(2*self.get_dist(cur_pos, target_pos)*self.get_dist(cur_pos, yaw_pos))
+		if cos_rule_rhs > 1:
+			cos_rule_rhs = 1
+		elif cos_rule_rhs < -1:
+			cos_rule_rhs = -1	
+
 		angle = math.acos(cos_rule_rhs)
-		# if angle > math.pi/2:
-			# cv2.imshow('angle img', overlay_img)
-			# cv2.waitKey(0)
 		rospy.loginfo('[NAV][ANGLE] cos angle: %f', angle)
 		return angle
 
@@ -279,7 +247,6 @@ class Navigation():
 		return False
 
 	def display_angles(self):
-		# pass
 		unmapped_region = self.get_nearest_unmapped_region()
 		overlay_img = np.zeros((self.map_height, self.map_width, 3), np.uint8)
 
@@ -292,7 +259,7 @@ class Navigation():
 		yaw_pj = int(self.bot_position[0] + length * math.cos(self.yaw))
 		yaw_point = (yaw_pi, yaw_pj)
 		rospy.loginfo('[NAV][ANGLE] current_yaw 1: %f', self.yaw)
-		req_angle = self.get_angle2(unmapped_region)
+		req_angle = self.get_angle(unmapped_region)
 		rospy.loginfo('required angle 1: %f', req_angle)
 		cv2.line(overlay_img, self.swap_xy(self.bot_position), yaw_point, (0,64,0), thickness=1, lineType=8)
 
@@ -301,13 +268,13 @@ class Navigation():
 		while req_angle > 0.08:
 			rospy.loginfo('[NAV][ANGLE] req_angle: %f', req_angle)
 			self.rotate_bot(req_angle)
-			req_angle = self.get_angle2(unmapped_region)
+			req_angle = self.get_angle(unmapped_region)
 
 		yaw_pi = int(self.bot_position[1] + length * math.sin(self.yaw))
 		yaw_pj = int(self.bot_position[0] + length * math.cos(self.yaw))
 		yaw_point = (yaw_pi, yaw_pj)
 		rospy.loginfo('[NAV][ANGLE] current_yaw 2: %f', self.yaw)
-		req_angle = self.get_angle2(unmapped_region)
+		req_angle = self.get_angle(unmapped_region)
 		rospy.loginfo('required angle 2: %f', req_angle)
 		cv2.line(overlay_img, self.swap_xy(self.bot_position), yaw_point, (128,0,0), thickness=1, lineType=8)
 
@@ -319,7 +286,7 @@ class Navigation():
 		yaw_pj = int(self.bot_position[0] + length * math.cos(self.yaw))
 		yaw_point = (yaw_pi, yaw_pj)
 		rospy.loginfo('[NAV][ANGLE] current_yaw 3: %f', self.yaw)
-		req_angle = self.get_angle2(unmapped_region)
+		req_angle = self.get_angle(unmapped_region)
 		rospy.loginfo('required angle 3: %f', req_angle)
 		cv2.line(overlay_img, self.swap_xy(self.bot_position), yaw_point, (0,192,0), thickness=1, lineType=8)
 
@@ -328,7 +295,7 @@ class Navigation():
 		while req_angle > 0.1:
 			rospy.loginfo('[NAV][ANGLE] req_angle: %f', req_angle)
 			self.rotate_bot(req_angle)
-			req_angle = self.get_angle2(unmapped_region)
+			req_angle = self.get_angle(unmapped_region)
 
 		yaw_pi = int(self.bot_position[1] + length * math.sin(self.yaw))
 		yaw_pj = int(self.bot_position[0] + length * math.cos(self.yaw))
@@ -342,60 +309,11 @@ class Navigation():
 		cv2.waitKey(0)
 
 	def rotate_to_point(self, pos):
-		rot_angle = self.get_angle2(pos)
-		# if rot_angle > math.pi/2:
-			# self.rotate_bot(self.yaw+math.pi)
-			# rot_angle = self.get_angle2(pos)
+		rot_angle = self.get_angle(pos)
 
 		while rot_angle > angular_tolerance:
 			self.rotate_bot(rot_angle)
-			rot_angle = self.get_angle2(pos)
-			# if rot_angle > math.pi/2:
-				# self.rotate_bot(self.yaw+math.pi)
-				# rot_angle = self.get_angle2(pos)
-
-	def test_func2(self, data):
-		if np.inf in self.lidar_data:
-			rospy.loginfo('V shape expected')
-		else:
-			rospy.loginfo('eh probs dont have it')
-		# self.update_edges()
-
-		# ret, occ_map_unknown = cv2.threshold(self.occ_grid, 0, 255, 0)
-		# map_overlay = np.zeros((self.map_height, self.map_width, 3), np.uint8)
-		# _, contours_ret, hierarchy = cv2.findContours(occ_map_unknown, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
-
-		# # cv2.drawContours(map_overlay,contours_ret, -1, (0,255,0))
-		# if cv2.isContourConvex(contours_ret[0]):
-		# 	rospy.loginfo('lol it is')
-
-		# for contour in contours_ret:
-		# 	approx = cv2.approxPolyDP(contour, 0.01 * cv2.arcLength(contour, True), True)
-		# 	n = approx.ravel()
-		# 	edges = []
-		# 	distances = []
-		# 	for x in range(0,len(n),2):
-		# 		i = n[x]
-		# 		j = n[x+1]
-		# 		edges.append((i,j))
-		# 		distances.append(self.get_dist())
-
-		# 	g = 0
-		# 	for i in range(len(edges)-1):
-		# 		cv2.line(map_overlay, edges[i], edges[i+1], (128,g,0), lineType=8, thickness=1)
-		# 		g += 40
-		# 	# cv2.drawContours(map_overlay, approx, -1, (255,0,0))
-		# 	cv2.circle(map_overlay, self.swap_xy(self.unmapped_region), 3, (0,0,255), -1)
-
-		# # cv2.imshow('thresh', occ_map_unknown)
-		# cv2.imshow('overlay', map_overlay)
-		# cv2.waitKey(0)
-
-
-		# self.display_angles()
-		# self.rotate_bot(math.degrees(60))
-		# self.display_angles()
-		# self.test_func("")
+			rot_angle = self.get_angle(pos)
 
 	def get_furthest_visible(self, pos):
 		closest_edge = self.get_closest_edge(self.swap_xy(pos))
@@ -405,25 +323,11 @@ class Navigation():
 		distances = [0,0,0,0]
 		dist_i = 0
 
-		# overlay_img = np.zeros((self.map_height, self.map_width, 3), np.uint8)
-		# cv2.circle(overlay_img, self.swap_xy(self.bot_position), 3, (0,0,255), -1)
-
-		# rospy.loginfo(corners)
 		for corner in corners:
-			# cv2.circle(overlay_img, self.swap_xy(corner), 2, (0,255,0), -1)
 			if not self.path_blocked(self.bot_position, corner):
 				distances[dist_i] = self.get_dist_sqr(corner)
 			dist_i += 1
 
-		# rospy.loginfo([x == 0 for x in distances])
-		if all(x == 0 for x in distances):
-			# return self.get_furthest_visible(self.bot_position)
-			pass
-		# overlay_img = cv2.bitwise_or(self.edge_map, overlay_img)
-		# overlay_img = cv2.bitwise_or(self.occ_map, overlay_img)
-
-		# cv2.imshow('overlay_img', overlay_img)
-		# cv2.waitKey(3)
 		return self.swap_xy(corners[distances.index(max(distances))])
 
 	def pick_direction(self):
@@ -432,7 +336,7 @@ class Navigation():
 		self.unmapped_region = unmapped_region
 
 		if self.inf_visible:
-			new_angle = self.get_angle2(unmapped_region)
+			new_angle = self.get_angle(unmapped_region)
 			if abs(new_angle - self.angle_to_target) > angular_tolerance:
 				self.target_changed = True
 				self.cur_target = unmapped_region
@@ -453,48 +357,17 @@ class Navigation():
 			self.target_changed = False
 		else:
 			self.target_changed = True
-		self.angle_to_target = self.get_angle2(target)
+		self.angle_to_target = self.get_angle(target)
 
 		# if self.prev_target == ():
 		# 	self.prev_target = target
-		# 	return True, target, self.get_angle2(target)
+		# 	return True, target, self.get_angle(target)
 
 		# if self.get_dist(target, self.prev_target) > 2:
 		# 	self.prev_target = target
-		# 	return True, target, self.get_angle2(target)
+		# 	return True, target, self.get_angle(target)
 		# else:
-		# 	return False, target, self.get_angle2(target)
-
-	def test_func(self, data):
-		rate = rospy.Rate(0.3)
-		while True:
-			if self.cur_target == ():
-				rate.sleep()
-
-			if self.inf_visible and self.in_motion and not self.target_changed:
-				self.move_bot(3 * self.linear_spd, 0.0)
-				rate.sleep()
-			# change, target, angle = self.pick_direction()
-			if self.target_changed:
-				self.target_changed = False
-				self.move_bot(0.0,0.0)
-				self.rotate_to_point(self.cur_target)
-
-			if self.obstacle_check():
-				self.move_bot(-self.linear_spd, 0.0)
-				time.sleep(1)
-				# _, target, angle = self.pick_direction()
-				self.move_bot(0.0,0.0)
-				self.rotate_bot(self.angle_to_target+0.2)
-				self.move_bot(self.linear_spd,0.0)
-				time.sleep(1)
-
-			self.move_bot(self.linear_spd,0.0)
-
-			if self.target_reached(self.cur_target):
-				self.target_changed = True
-			else:
-				rate.sleep()
+		# 	return False, target, self.get_angle(target)
 
 	def map_region(self):
 		rate = rospy.Rate(1)
