@@ -23,7 +23,7 @@ class Navigation():
 		self.occ_grid = np.array([])
 
 		self.bot_angular_range = range(-10,10)
-		self.stop_dist = 0.5
+		self.stop_dist = 0.15
 
 		self.map_origin = ()
 		self.map_height = 0
