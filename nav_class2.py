@@ -510,7 +510,8 @@ class Navigation():
 				time.sleep(1)
 				# _, target, angle = self.pick_direction()
 				self.move_bot(0.0,0.0)
-				self.rotate_bot(self.angle_to_target+0.4)
+				# self.rotate_bot(self.angle_to_target)
+				self.rotate_to_point(self.cur_target)
 				self.move_bot(self.linear_spd,0.0)
 				time.sleep(1)
 
