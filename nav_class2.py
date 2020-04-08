@@ -497,7 +497,7 @@ class Navigation():
 				rate.sleep()
 
 	def map_region(self):
-		rate = rospy.Rate(0.3)
+		rate = rospy.Rate(1)
 		while True:
 			if self.cur_target == ():
 				rate.sleep()
