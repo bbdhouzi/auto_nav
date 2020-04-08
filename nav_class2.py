@@ -589,51 +589,51 @@ class Navigation():
 
 
 		rospy.loginfo('[NAV][ROT] Turning to face %f', target_yaw)
-		# while(c_change_dir * c_dir_diff > 0):
-		# 	# get current yaw angle
-		# 	current_yaw = np.copy(self.yaw)
-		# 	# get the current yaw in complex form
-		# 	c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
-		# 	# rospy.loginfo('While Yaw: %f Target Yaw: %f', math.degrees(current_yaw), math.degrees(target_yaw))
-		# 	# get difference in angle between current and target
-		# 	c_change = c_target_yaw / c_yaw
-		# 	# get the sign to see if we can stop
-		# 	c_dir_diff = np.sign(c_change.imag)
-		# 	# rospy.loginfo(['c_change_dir: ' + str(c_change_dir) + ' c_dir_diff: ' + str(c_dir_diff)])
-		# 	rem_ang_dist = target_yaw - current_yaw
+		while(c_change_dir * c_dir_diff > 0):
+			# get current yaw angle
+			current_yaw = np.copy(self.yaw)
+			# get the current yaw in complex form
+			c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
+			# rospy.loginfo('While Yaw: %f Target Yaw: %f', math.degrees(current_yaw), math.degrees(target_yaw))
+			# get difference in angle between current and target
+			c_change = c_target_yaw / c_yaw
+			# get the sign to see if we can stop
+			c_dir_diff = np.sign(c_change.imag)
+			# rospy.loginfo(['c_change_dir: ' + str(c_change_dir) + ' c_dir_diff: ' + str(c_dir_diff)])
+			rem_ang_dist = target_yaw - current_yaw
 
-		# 	# if rem_ang_dist > prev_rem_ang_dist:
-		# 		# self.move_bot(0.0, c_change_dir * self.angular_spd * (-1))
-		# 	# else:
-		# 		# prev_rem_ang_dist = rem_ang_dist
+			# if rem_ang_dist > prev_rem_ang_dist:
+				# self.move_bot(0.0, c_change_dir * self.angular_spd * (-1))
+			# else:
+				# prev_rem_ang_dist = rem_ang_dist
 
 
-		# 	if rem_ang_dist > 3:
-		# 		self.move_bot(0.0,3 * self.angular_spd * c_change_dir)
-		# 	elif rem_ang_dist > 2:
-		# 		self.move_bot(0.0,2.5 * self.angular_spd* c_change_dir)
-		# 	elif rem_ang_dist > 1:
-		# 		self.move_bot(0.0,1.5 * self.angular_spd* c_change_dir)
-		# 	else:
-		# 		self.move_bot(0.0,self.angular_spd* c_change_dir)
-
-		# 	rate.sleep()
-
-		while True:
-			rem_ang_dist = abs(self.yaw - self.angle_to_target)
-			rospy.loginfo(rem_ang_dist)
-			if rem_ang_dist > angular_tolerance:
-
-				if rem_ang_dist > 2:
-					self.move_bot(0.0,c_change_dir * self.angular_spd * 2)
-				elif rem_ang_dist < 0.6:
-					self.move_bot(0.0,c_change_dir * self.angular_spd * 0.25)
-				else:
-					self.move_bot(0.0,c_change_dir * self.angular_spd)
-
-				rate.sleep()
+			if rem_ang_dist > 3:
+				self.move_bot(0.0,3 * self.angular_spd * c_change_dir)
+			elif rem_ang_dist > 2:
+				self.move_bot(0.0,2.5 * self.angular_spd* c_change_dir)
+			elif rem_ang_dist > 1:
+				self.move_bot(0.0,1.5 * self.angular_spd* c_change_dir)
 			else:
-				break
+				self.move_bot(0.0,self.angular_spd* c_change_dir)
+
+			rate.sleep()
+
+		# while True:
+		# 	rem_ang_dist = abs(self.yaw - self.angle_to_target)
+		# 	rospy.loginfo(rem_ang_dist)
+		# 	if rem_ang_dist > angular_tolerance:
+
+		# 		if rem_ang_dist > 2:
+		# 			self.move_bot(0.0,c_change_dir * self.angular_spd * 2)
+		# 		elif rem_ang_dist < 0.6:
+		# 			self.move_bot(0.0,c_change_dir * self.angular_spd * 0.25)
+		# 		else:
+		# 			self.move_bot(0.0,c_change_dir * self.angular_spd)
+
+		# 		rate.sleep()
+		# 	else:
+		# 		break
 	
 		rospy.loginfo(['End Yaw: ' + str(math.degrees(current_yaw))])
 		# set the rotation speed to 0
