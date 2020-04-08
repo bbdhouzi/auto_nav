@@ -47,6 +47,7 @@ class Navigation():
 		self.angle_to_target = 0.0
 		self.inf_visible = False
 		self.in_motion = False
+		self.obstacle_detected = False
 
 		self.dist_to_trgt = 0
 		self.prev_dist = 99999999
@@ -58,6 +59,11 @@ class Navigation():
 	def update_laserscan_data(self, data):
 		self.lidar_data = data
 		self.inf_visible = (np.inf in data)
+
+		if self.obstacle_check():
+			self.obstacle_detected = True
+		else:
+			self.obstacle_detected = False
 
 	def update_occ_grid(self, grid, origin, resolution):
 		self.occ_grid = grid
@@ -263,18 +269,9 @@ class Navigation():
 			return False
 
 	def obstacle_check(self):
-		# lr2 = (self.lidar_data[0, self.bot_angular_range]!=0).nonzero()
 		lr2 = self.lidar_data[0,self.bot_angular_range]
-		# rospy.loginfo(len(lr2))
-		if lr2[0] == 'inf':
-			rospy.loginfo(2)
-		elif lr2[0] == np.inf:
-			rospy.loginfo(3)
-		else:
-			rospy.loginfo(4)
 
 		list_to_check = [x < self.stop_dist and not (x == 0 or x == np.inf) for x in lr2]
-		# rospy.loginfo(list_to_check)
 		if np.any(list_to_check):
 			rospy.loginfo(lr2[0])
 			rospy.loginfo('[NAV][TRGT] Obstacle in front!, rechecking direction')
@@ -433,6 +430,17 @@ class Navigation():
 		unmapped_region = self.get_nearest_unmapped_region()
 		self.rviz_marker(unmapped_region, 0)
 		self.unmapped_region = unmapped_region
+
+		if self.inf_visible:
+			new_angle = self.get_angle2(unmapped_region)
+			if abs(new_angle - self.angle_to_target) > angular_tolerance:
+				self.target_changed = True
+				self.cur_target = unmapped_region
+			else:
+				self.cur_target = unmapped_region
+				self.target_changed = False
+			return
+
 		target = ()
 		if self.path_blocked(self.bot_position, unmapped_region):
 			target = self.get_furthest_visible(unmapped_region)
@@ -463,7 +471,7 @@ class Navigation():
 			if self.cur_target == ():
 				rate.sleep()
 
-			if self.inf_visible and self.in_motion:
+			if self.inf_visible and self.in_motion and not self.target_changed:
 				self.move_bot(3 * self.linear_spd, 0.0)
 				rate.sleep()
 			# change, target, angle = self.pick_direction()
@@ -494,6 +502,17 @@ class Navigation():
 			if self.cur_target == ():
 				rate.sleep()
 
+			if self.obstacle_detected:
+				self.move_bot(0.0,0.0)
+				time.sleep(0.3)
+				self.move_bot(-self.linear_spd, 0.0)
+				time.sleep(1)
+				# _, target, angle = self.pick_direction()
+				self.move_bot(0.0,0.0)
+				self.rotate_bot(self.angle_to_target+0.4)
+				self.move_bot(self.linear_spd,0.0)
+				time.sleep(1)
+
 			if self.inf_visible and self.in_motion:
 				self.move_bot(3 * self.linear_spd, 0.0)
 				rate.sleep()
@@ -501,16 +520,10 @@ class Navigation():
 			if self.target_changed:
 				self.target_changed = False
 				self.move_bot(0.0,0.0)
-				self.rotate_to_point(self.cur_target)
+				# self.rotate_to_point(self.cur_target)
+				self.rotate_bot(self.angle_to_target)
 
-			if self.obstacle_check():
-				self.move_bot(-self.linear_spd, 0.0)
-				time.sleep(1)
-				# _, target, angle = self.pick_direction()
-				self.move_bot(0.0,0.0)
-				self.rotate_bot(self.angle_to_target+0.2)
-				self.move_bot(self.linear_spd,0.0)
-				time.sleep(1)
+			
 
 			self.move_bot(self.linear_spd,0.0)
 
@@ -534,7 +547,7 @@ class Navigation():
 	
 	def rotate_bot(self, rot_angle):
 		# create Twist object
-		twist = Twist()
+		# twist = Twist()
 		# set the update rate to 1 Hz
 		rate = rospy.Rate(3)
 	
@@ -558,10 +571,10 @@ class Navigation():
 		# c_change_dir = np.sign(c_change.imag)
 		c_change_dir = 1.0 if rot_angle > math.pi else -1.0
 		# set linear speed to zero so the TurtleBot rotates on the spot
-		twist.linear.x = 0.0
+		# twist.linear.x = 0.0
 		# set the direction to rotate
-		twist.angular.z = c_change_dir * self.angular_spd
-		rospy.loginfo(twist.angular.z)
+		# twist.angular.z = c_change_dir * self.angular_spd
+		# rospy.loginfo(twist.angular.z)
 		# start rotation
 		# pub.publish(twist)
 		self.move_bot(0.0, c_change_dir *self.angular_spd)
@@ -571,33 +584,60 @@ class Navigation():
 		# rospy.loginfo(['c_change_dir: ' + str(c_change_dir) + ' c_dir_diff: ' + str(c_dir_diff)])
 		# if the rotation direction was 1.0, then we will want to stop when the c_dir_diff
 		# becomes -1.0, and vice versa
-		rospy.loginfo('[NAV][ROT] Turning to face %f', target_yaw)
-		while(c_change_dir * c_dir_diff > 0):
-			# get current yaw angle
-			current_yaw = np.copy(self.yaw)
-			# get the current yaw in complex form
-			c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
-			# rospy.loginfo('While Yaw: %f Target Yaw: %f', math.degrees(current_yaw), math.degrees(target_yaw))
-			# get difference in angle between current and target
-			c_change = c_target_yaw / c_yaw
-			# get the sign to see if we can stop
-			c_dir_diff = np.sign(c_change.imag)
-			# rospy.loginfo(['c_change_dir: ' + str(c_change_dir) + ' c_dir_diff: ' + str(c_dir_diff)])
-			rem_ang_dist = target_yaw - current_yaw
-			if rem_ang_dist > 3:
-				self.move_bot(0.0,3 * self.angular_spd * c_change_dir)
-			elif rem_ang_dist > 2:
-				self.move_bot(0.0,2.5 * self.angular_spd* c_change_dir)
-			elif rem_ang_dist > 1:
-				self.move_bot(0.0,1.5 * self.angular_spd* c_change_dir)
-			else:
-				self.move_bot(0.0,self.angular_spd* c_change_dir)
 
-			rate.sleep()
+		prev_rem_ang_dist = target_yaw - current_yaw
+
+
+		rospy.loginfo('[NAV][ROT] Turning to face %f', target_yaw)
+		# while(c_change_dir * c_dir_diff > 0):
+		# 	# get current yaw angle
+		# 	current_yaw = np.copy(self.yaw)
+		# 	# get the current yaw in complex form
+		# 	c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
+		# 	# rospy.loginfo('While Yaw: %f Target Yaw: %f', math.degrees(current_yaw), math.degrees(target_yaw))
+		# 	# get difference in angle between current and target
+		# 	c_change = c_target_yaw / c_yaw
+		# 	# get the sign to see if we can stop
+		# 	c_dir_diff = np.sign(c_change.imag)
+		# 	# rospy.loginfo(['c_change_dir: ' + str(c_change_dir) + ' c_dir_diff: ' + str(c_dir_diff)])
+		# 	rem_ang_dist = target_yaw - current_yaw
+
+		# 	# if rem_ang_dist > prev_rem_ang_dist:
+		# 		# self.move_bot(0.0, c_change_dir * self.angular_spd * (-1))
+		# 	# else:
+		# 		# prev_rem_ang_dist = rem_ang_dist
+
+
+		# 	if rem_ang_dist > 3:
+		# 		self.move_bot(0.0,3 * self.angular_spd * c_change_dir)
+		# 	elif rem_ang_dist > 2:
+		# 		self.move_bot(0.0,2.5 * self.angular_spd* c_change_dir)
+		# 	elif rem_ang_dist > 1:
+		# 		self.move_bot(0.0,1.5 * self.angular_spd* c_change_dir)
+		# 	else:
+		# 		self.move_bot(0.0,self.angular_spd* c_change_dir)
+
+		# 	rate.sleep()
+
+		while True:
+			rem_ang_dist = abs(self.yaw - self.angle_to_target)
+			rospy.loginfo(rem_ang_dist)
+			if rem_ang_dist > angular_tolerance:
+
+				if rem_ang_dist > 2:
+					self.move_bot(0.0,c_change_dir * self.angular_spd * 2)
+				elif rem_ang_dist < 0.6:
+					self.move_bot(0.0,c_change_dir * self.angular_spd * 0.25)
+				else:
+					self.move_bot(0.0,c_change_dir * self.angular_spd)
+
+				rate.sleep()
+			else:
+				break
 	
 		rospy.loginfo(['End Yaw: ' + str(math.degrees(current_yaw))])
 		# set the rotation speed to 0
-		twist.angular.z = 0.0
+		# twist.angular.z = 0.0
 		# stop the rotation
 		time.sleep(1)
 		# pub.publish(twist)
