@@ -503,6 +503,7 @@ class Navigation():
 				rate.sleep()
 
 			if self.obstacle_detected:
+				rospy.loginfo('stopping because of obstacle')
 				self.move_bot(0.0,0.0)
 				time.sleep(0.3)
 				self.move_bot(-self.linear_spd, 0.0)
@@ -518,12 +519,11 @@ class Navigation():
 				rate.sleep()
 			# change, target, angle = self.pick_direction()
 			if self.target_changed:
+				rospy.loginfo('stoppping because of target change')
 				self.target_changed = False
 				self.move_bot(0.0,0.0)
-				# self.rotate_to_point(self.cur_target)
-				self.rotate_bot(self.angle_to_target)
-
-			
+				self.rotate_to_point(self.cur_target)
+				# self.rotate_bot(self.angle_to_target)
 
 			self.move_bot(self.linear_spd,0.0)
 
