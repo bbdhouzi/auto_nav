@@ -13,7 +13,7 @@ import cmath
 import numpy as np
 import time
 from visualization_msgs.msg import Marker
-from nav_class2 import Navigation
+from nav_class import Navigation
 
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
