@@ -70,7 +70,7 @@ def occ_cb(msg, tf_buf):
 	grid_x = int((cur_pos.x - map_origin.x)/map_res)
 	grid_y = int((cur_pos.y - map_origin.y)/map_res)
 	bot_pos = (grid_x, grid_y)
-	rospy.loginfo('[NAV] current position: %s', str(bot_pos))
+	rospy.logdebug('[NAV] current position: %s', str(bot_pos))
 
 	oc2 = occdata + 1
 	occ_grid = np.uint8(oc2.reshape(msg.info.height, msg.info.width, order='F'))
@@ -103,31 +103,7 @@ def mapper():
 	rospy.on_shutdown(stopbot)
 	rospy.sleep(3)
 
-	# navigator.rotate_bot(math.degrees(10))
-	# time.sleep(1)
-	# navigator.rotate_bot(math.degrees(-10))
-	# time.sleep(1)
-
-	# navigator.display_map()
-	navigator.test_func('')
-	# navigator.map_region()
-
-	# navigator.map_region()
-	# navigator.test_func("")
-	# navigator.rotate_bot(360)
-	# rate = rospy.Rate(5)
-	# while not navigator.mapping_complete():
-	# 	navigator.get_nearest_unmapped_region()
-	# 	navigator.set_target()
-	# 	# navigator.set_marker()
-	# 	# navigator.move_to_target()
-	# 	target = navigator.get_next_target()
-	# 	angle = navigator.get_direction(target)
-	# 	navigator.rotate_bot(angle)
-	# 	navigator.display_map()
-	# 	navigator.move_bot(linear_speed, 0.0)
-	# 	rate.sleep()
-		
+	navigator.map_region()
 
 	rospy.spin()
 
