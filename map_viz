@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+
+import numpy as np
+import matplotlib.pyplot as plt
+import time
+
+height = 384
+
+def print_map(input_arr, filename):
+	image = [[[0,0,0] for i in range(height)] for j in range(height)]
+	for i in range(input_arr.shape[0]):
+		for j in range(input_arr.shape[1]):
+			if input_arr[i,j] == 0:
+				image[i][j] = [255,0,0]
+			elif input_arr[i,j] == 101:
+				image[i][j] = [0,255,0]
+			elif input_arr[i,j] == 1:
+				image[i][j] = [0,0,255]
+			else:
+				image[i][j] = [255,255,0]
+	# print(image)
+	plt.imshow(image)
+	# plt.savefig(filename)
+	plt.show()
+
+def check_complete2(input_arr):
+	for i in range(input_arr.shape[0]-1):
+		for j in range(input_arr.shape[1]-1):
+			# if input_arr[i,j] ^input_arr[i+1,j] or input_arr[i,j]
+			if input_arr[i,j] == 101:
+				continue
+			else:
+				if (input_arr[i+1,j] != 101 and input_arr[i,j] != input_arr[i+1,j]) or (input_arr[i,j+1] != 101 and input_arr[i,j] != input_arr[i,j+1]):
+				# if input_arr[i,j] != input_arr[i+1,j] or input_arr[i,j] != input_arr[i,j+1]:
+					# print(f'i={i} j={j}')
+					# print(f'[i,j]={input_arr[i,j]} [i+1,j]={input_arr[i+1,j]} [i,j+1]={input_arr[i,j+1]} ')
+					return True
+	return False
+
+def check_complete3(input_arr, start_pos):
+	pos_to_check = [start_pos]
+	checked_pos = []
+	for cur_pos in pos_to_check:
+		i,j = cur_pos[0],cur_pos[1]
+		for next_pos in [(i-1,j),(i,j+1),(i+1,j),(i,j-1)]:
+			print(i)
+			print(j)
+			if input_arr[next_pos] == 0:
+				return False
+			elif input_arr[next_pos] == 1:
+				if next_pos not in checked_pos:
+					pos_to_check.append(next_pos)
+		checked_pos.append(cur_pos)
+		pos_to_check.remove(cur_pos)
+	return True
+
+# def pick_direction(input_arr, cur_pos):
+
+def pick_direction():
+	ret,img = cv2.threshold(occ_grid, 2, 255, 0)
+	element = cv2.getStructuringElement(cv2.MORPH_CROSS, (DILATE_PIXELS, DILATE_PIXELS))
+	img2 = cv3.dilate(img2, element)
+	fc, hierarchy = cv2.findContours(img2, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+	contours = fc[0]
+	lc = len(contours)
+
+	x,y,w,h = cv2.boundingRect(contours)
+	cv2.rectabgle(img2, (x,y),(x+w,y+h), (255,0,0),2)
+	cv2.imshow('Map', img2)
+	cv2.waitKey()
+
+
+	
+
+def read_file(filename):
+	with open(filename) as f:
+		data = f.readlines()
+		# return np.array(np.split(np.array([int(i)+1 for i in data[23][7:-2].split(',')]), height))
+		return np.uint8(np.array([int(i)+1 for i in data[23][7:-2].split(',')]).reshape(height, height, order='F'))
+
+if __name__ == '__main__':
+	# print(read_file('closed_map.txt'))
+	# arr1 = read_file('closed_map_proper.txt')
+	# print_map(arr1, 'closed_map_proper.jpg')
+	# arr2 = read_file('open_map.txt')
+	# print_map(arr2, 'open_map.jpg')
+	arr3 = read_file('complete_map_trial.txt')
+	print_map(arr3, 'complete_map.jpg')
+
+	# print(check_complete_rec2(arr1))
+	# print(check_complete3(arr1,(198,197)))
+	# print(check_complete3(arr2,(198,197)))
+	# print(check_complete2(arr1))
+	# print(check_complete2(arr2))
+	# print(check_complete_rec(arr1))
+	# print(check_complete_rec(arr2))
+
+	# while(True):
+		# time.sleep(3)

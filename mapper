@@ -13,9 +13,7 @@ import cmath
 import numpy as np
 import time
 from visualization_msgs.msg import Marker
-
-# import matplotlib.pyplot as plt
-# from PIL import Image
+from nav_class2 import Navigation
 
 import cv2
 from cv_bridge import CvBridge, CvBridgeError
@@ -25,7 +23,7 @@ occdata = []
 
 yaw = 0.0
 rotate_speed = 0.1
-linear_speed = 0.05
+linear_speed = 0.1
 stop_distance = 0.25
 
 occ_bins = [-1, 0, 100, 101]
@@ -33,10 +31,12 @@ front_angle = 30
 front_angles = range(-front_angle, front_angle+1, 1)
 
 occ_grid = []
-current_pos = ()
+bot_pos = ()
 checked_positions = []
 map_height = 0
 map_width = 0
+
+navigator = Navigation(linear_speed, rotate_speed)
 
 def odom_cb(msg):
 	global yaw
@@ -44,171 +44,40 @@ def odom_cb(msg):
 	orientation_quat = msg.pose.pose.orientation
 	orientation_list = [orientation_quat.x, orientation_quat.y, orientation_quat.z, orientation_quat.w]
 	(roll, pitch, yaw) = euler_from_quaternion(orientation_list)
+	# rospy.loginfo('[YAW]: %f', yaw)
+	navigator.update_yaw(yaw)
 
 def laser_scan_cb(msg):
 	global laser_range
 	laser_range = np.array([msg.ranges])
+	navigator.update_laserscan_data(laser_range)
 
 def occ_cb(msg, tf_buf):
 	global occdata
-	global current_pos
+	global bot_pos
 	global occ_grid
 
 	occdata = np.array([msg.data])
 	occ_counts = np.histogram(occdata, occ_bins)
 	total_bins = msg.info.width * msg.info.height
 
-	rospy.loginfo('Unmapped: %i, Unoccupied: %i, Occupied: %i, Total: %i', occ_counts[0][0], occ_counts[0][1], occ_counts[0][2], total_bins)
+	# rospy.loginfo('Unmapped: %i, Unoccupied: %i, Occupied: %i, Total: %i', occ_counts[0][0], occ_counts[0][1], occ_counts[0][2], total_bins)
 
 	trans2 = tf_buf.lookup_transform('map', 'base_link', rospy.Time(0))
 	cur_pos = trans2.transform.translation
 	map_res = msg.info.resolution
 	map_origin = msg.info.origin.position
-	current_pos = ((cur_pos.x - map_origin.x)/map_res, (cur_pos.y - map_origin.y)/map_res)
-	rospy.loginfo('[NAV] current position: %s', str(current_pos))
+	grid_x = int((cur_pos.x - map_origin.x)/map_res)
+	grid_y = int((cur_pos.y - map_origin.y)/map_res)
+	bot_pos = (grid_x, grid_y)
+	rospy.logdebug('[NAV] current position: %s', str(bot_pos))
 
 	oc2 = occdata + 1
-	# oc3 = (oc2>1).choose(oc2,2)
-	# occ_grid = np.uint8(oc3.reshape(msg.info.width, msg.info.height, order='F'))
 	occ_grid = np.uint8(oc2.reshape(msg.info.height, msg.info.width, order='F'))
-	# rospy.loginfo(msg.info.width)
-	# rospy.loginfo(msg.info.height)
-	# occ_grid = np.uint8(np.reshape(oc2, (msg.info.height, msg.info.width)))
-	# rospy.loginfo(occ_grid)
 
-	
-def rotatebot(rot_angle):
-	global yaw
-
-	rospy.loginfo('[NAV] changing direction')
-
-	# create Twist object
-	twist = Twist()
-	# set up Publisher to cmd_vel topic
-	pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
-	# set the update rate to 1 Hz
-	rate = rospy.Rate(1)
-
-	# get current yaw angle
-	current_yaw = np.copy(yaw)
-	# log the info
-	rospy.loginfo(['Current: ' + str(math.degrees(current_yaw))])
-	# we are going to use complex numbers to avoid problems when the angles go from
-	# 360 to 0, or from -180 to 180
-	c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
-	# calculate desired yaw
-	target_yaw = current_yaw + math.radians(rot_angle)
-	# convert to complex notation
-	c_target_yaw = complex(math.cos(target_yaw),math.sin(target_yaw))
-	rospy.loginfo(['Desired: ' + str(math.degrees(cmath.phase(c_target_yaw)))])
-	# divide the two complex numbers to get the change in direction
-	c_change = c_target_yaw / c_yaw
-	# get the sign of the imaginary component to figure out which way we have to turn
-	c_change_dir = np.sign(c_change.imag)
-	# set linear speed to zero so the TurtleBot rotates on the spot
-	twist.linear.x = 0.0
-	# set the direction to rotate
-	twist.angular.z = c_change_dir * rotate_speed
-	# start rotation
-	pub.publish(twist)
-
-	# we will use the c_dir_diff variable to see if we can stop rotating
-	c_dir_diff = c_change_dir
-	# rospy.loginfo(['c_change_dir: ' + str(c_change_dir) + ' c_dir_diff: ' + str(c_dir_diff)])
-	# if the rotation direction was 1.0, then we will want to stop when the c_dir_diff
-	# becomes -1.0, and vice versa
-	while(c_change_dir * c_dir_diff > 0):
-		# get current yaw angle
-		current_yaw = np.copy(yaw)
-		# get the current yaw in complex form
-		c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
-		rospy.loginfo('While Yaw: %f Target Yaw: %f', math.degrees(current_yaw), math.degrees(target_yaw))
-		# get difference in angle between current and target
-		c_change = c_target_yaw / c_yaw
-		# get the sign to see if we can stop
-		c_dir_diff = np.sign(c_change.imag)
-		# rospy.loginfo(['c_change_dir: ' + str(c_change_dir) + ' c_dir_diff: ' + str(c_dir_diff)])
-		rate.sleep()
-
-	rospy.loginfo(['End Yaw: ' + str(math.degrees(current_yaw))])
-	# set the rotation speed to 0
-	twist.angular.z = 0.0
-	# stop the rotation
-	time.sleep(1)
-	pub.publish(twist)
-
-	rospy.loginfo('[NAV] Reached desired direction')
-
-def get_unmapped_coord():
-	global checked_positions
-	global next_pos
-	pos_to_check = [current_pos]
-	for cur_pos in pos_to_check:
-		i,j = cur_pos[0], cur_pos[1]
-		rospy.loginfo(cur_pos[0])
-		rospy.loginfo(cur_pos[1])
-		for next_pos in [(i-1,j),(i,j+1),(i+1,j),(i,j-1)]:
-			if next_pos not in checked_positions:
-				if occ_grid[next_pos] == 0:
-					rospy.loginfo('[NAV] next unmapped region: %s', str(next_pos))
-					return next_pos
-				elif occ_grid[next_pos] == 1:
-					pos_to_check.append(next_pos)
-		checked_positions.append(cur_pos)
-
-		if cur_pos in pos_to_check:
-			pos_to_check.remove(cur_pos)
-	return False
-	rospy.loginfo('[MAP] mapping complete')
-
-def pick_direction():
-	rospy.loginfo('[NAV] choosing direction')
-	pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
-	# map_pub = rospy.Publisher('nav_markers', Marker, queue_size=10)
-	# rospy.sleep(0.5)
-
-	twist = Twist()
-	twist.linear.x = 0.0
-	twist.angular.z = 0.0
-	time.sleep(1)
-	pub.publish(twist)
-
-	next_coord = get_unmapped_coord()	
-	angle = math.atan2((next_coord[1]-current_pos[1]),next_coord[0]-current_pos[0])
-	rospy.loginfo(angle)
-	rotatebot(angle+math.radians(40))
-
-	# rospy.loginfo(next_coord)
-	# nav_marker = Marker()
-	# nav_marker.header.frame_id = "map"
-	# nav_marker.ns = "marker_test"
-	# nav_marker.id = 1
-	# nav_marker.pose.position.x = next_coord[0]
-	# nav_marker.pose.position.y = next_coord[1]
-	# # nav_marker.pose.position.x = 1.0
-	# # nav_marker.pose.position.y = 1.0
-	# nav_marker.type = nav_marker.CUBE
-	# nav_marker.action = nav_marker.MODIFY
-	# nav_marker.scale.x = 0.2
-	# nav_marker.scale.y = 0.2
-	# nav_marker.scale.z = 0.1
-	# nav_marker.pose.orientation.w = 1.0
-	# nav_marker.color.r = 1.0
-	# nav_marker.color.g = 1.0
-	# nav_marker.color.b = 0.0
-	# nav_marker.color.a = 0.7
-
-	# map_pub.publish(nav_marker)
-
-	rospy.loginfo('[NAV] resuming motion')
-	twist.linear.x = linear_speed
-	twist.angular.z = 0.0
-	time.sleep(1)
-	pub.publish(twist)
-
-	odata = occ_grid.copy()
-	odata[current_pos] = 0
-	odata[next_coord] = 255
+	# navigator.update_bot_pos((bot_pos[1],bot_pos[0]))
+	navigator.update_bot_pos(bot_pos)
+	navigator.update_occ_grid(occ_grid, map_origin, map_res)
 
 def stopbot():
     # publish to cmd_vel to move TurtleBot
@@ -231,22 +100,12 @@ def mapper():
 	rospy.Subscriber('scan', LaserScan, laser_scan_cb)
 	rospy.Subscriber('map', OccupancyGrid, occ_cb, tf_buf)
 
-	rate = rospy.Rate(5)
 	rospy.on_shutdown(stopbot)
 	rospy.sleep(3)
 
-	pick_direction()
+	navigator.map_region()
 
-	while not rospy.is_shutdown():
-		lr2 = laser_range[0,front_angles]
-		lr20 = (lr2!=0).nonzero()
-		lr2i = (lr2[lr20]<float(stop_distance)).nonzero()
-
-		if (len(lr2i[0])>0):
-			rospy.loginfo('[NAV] object detected')
-			pick_direction()
-		
-		rate.sleep()
+	rospy.spin()
 
 if __name__ == '__main__':
 	try:

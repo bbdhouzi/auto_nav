@@ -9,19 +9,22 @@ from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 
 cur_frame = None
+cur_frame1 = None
+
 face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 kernel = np.ones((10,10), np.uint8)
+color = 'red'
 
 def get_image(data):
-	global cur_frame
+	global cur_frame, cur_frame1
 	bridge = CvBridge()
 	cur_frame = bridge.imgmsg_to_cv2(data, "bgr8")
-
+	cur_frame1 = bridge.imgmsg_to_cv2(data, "bgr8")
 
 def main():
-	global cur_frame
+	global cur_frame, cur_frame1
 	rospy.init_node('cam_test_rm', anonymous=True)
-	rospy.Subscriber('img_topic', Image, get_image)
+	rospy.Subscriber('raspicam_node/image', Image, get_image)
 
 	clr = np.uint8([[[255, 0, 0]]])
 	hsv_clr = cv2.cvtColor(clr, cv2.COLOR_BGR2HSV)
@@ -29,36 +32,75 @@ def main():
 
 	rate = rospy.Rate(5)
 	while not rospy.is_shutdown():
-		if cur_frame is not None:
+		if cur_frame is not None and cur_frame1 is not None:
 			rows,cols,channels = cur_frame.shape
 			
 			# gray_frame = cv2.cvtColor(cur_frame, cv2.COLOR_BGR2GRAY)
 			# faces = face_cascade.detectMultiScale(gray_frame,1.3, 5)
 			# blurred = cv2.GaussianBlur(cur_frame, (11, 11), 0)
-			hsv_frame = cv2.cvtColor(cur_frame, cv2.COLOR_BGR2HSV)
-			lower_range = np.array([100,100,100])
-			upper_range = np.array([140,255,255])
 
-			mask = cv2.inRange(hsv_frame, lower_range, upper_range)
+			if color == 'blue' or color == 'green':
+				hsv_frame = cv2.cvtColor(cur_frame, cv2.COLOR_BGR2HSV)
+			elif color == 'red':
+				hsv_frame = cv2.cvtColor(cur_frame, cv2.COLOR_BGR2HSV)
+				hsv_frame1 = cv2.cvtColor(cur_frame1, cv2.COLOR_BGR2HSV)
+			if color == 'blue' or color == 'green':
+				lower_range = np.array([110,127,127])
+				upper_range = np.array([130,255,255])
+
+			elif color == 'red':
+				lower_range = np.array([0,127,127])
+				upper_range = np.array([10,255,255])
+				lower_range1 = np.array([170,127,127])
+				upper_range1 = np.array([180,255,255])
+			
+
+			if color == 'blue' or color == 'green':
+				mask = cv2.inRange(hsv_frame, lower_range, upper_range)
+				mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+				image, cnts, hierarchy = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+				cur_frame = cv2.drawContours(cur_frame, cnts, -1, (0,255,0), 3)
+				cnts1 = []
+
+			elif color == 'red':
+				mask = cv2.inRange(hsv_frame, lower_range, upper_range)
+				mask1 = cv2.inRange(hsv_frame1, lower_range1, upper_range1)
 			# mask = cv2.erode(mask, None, iterations=2)
 			# mask = cv2.dilate(mask, None, iterations=2)
-			mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+				mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+				image, cnts, hierarchy = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+				cur_frame = cv2.drawContours(cur_frame, cnts, -1, (0,255,0), 3)
 
-			image, cnts, hierarchy = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-			cur_frame = cv2.drawContours(cur_frame, cnts, -1, (0,255,0), 3)
+				mask1 = cv2.morphologyEx(mask1, cv2.MORPH_OPEN, kernel)
+				image1, cnts1, hierarchy1 = cv2.findContours(mask1.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+				cur_frame1 = cv2.drawContours(cur_frame1, cnts1, -1, (0,255,0), 3)
+
 
 			# for i in cnts:
 				# x,y,w,h = cv2.boundingRect(i)
 				# cur_frame = cv2.rectangle(cur_frame, (x,y),(x+w,y+h), (0,0,255),3)
-			if len(cnts) > 0:
-				c = max(cnts, key=cv2.contourArea)
+			if len(cnts) > 0 or len(cnts1) > 0:
+				if len(cnts) > 0:
+					c = max(cnts, key=cv2.contourArea)
+				else:
+					c = max(cnts1, key=cv2.contourArea)
+
 				x,y,w,h = cv2.boundingRect(c)
 
-				cur_frame = cv2.rectangle(cur_frame, (x,y),(x+w,y+h), (0,0,255),2)
-				center = (x + (w//2),y + (h//2))
-				cur_frame = cv2.rectangle(cur_frame, (center[0]-1, center[1]-1), (center[0]+1, center[1]+1), (0,255,255),2)
-				rospy.loginfo(center)
-
+				if color == 'blue' or color == 'green':
+					cur_frame = cv2.rectangle(cur_frame, (x,y),(x+w,y+h), (0,0,255),2)
+					center = (x + (w//2),y + (h//2))
+					cur_frame = cv2.rectangle(cur_frame, (center[0]-1, center[1]-1), (center[0]+1, center[1]+1), (0,255,255),2)
+					rospy.loginfo(center)
+				elif color == 'red':
+					cur_frame = cv2.rectangle(cur_frame, (x,y),(x+w,y+h), (0,0,255),2)
+					center = (x + (w//2),y + (h//2))
+					cur_frame = cv2.rectangle(cur_frame, (center[0]-1, center[1]-1), (center[0]+1, center[1]+1), (0,255,255),2)
+					rospy.loginfo(center)
+					cur_frame1 = cv2.rectangle(cur_frame1, (x,y),(x+w,y+h), (0,0,255),2)
+					center1 = (x + (w//2),y + (h//2))
+					cur_frame1 = cv2.rectangle(cur_frame1, (center1[0]-1, center1[1]-1), (center1[0]+1, center[1]+1), (0,255,255),2)
+					rospy.loginfo(center1)	
 			# cnts = imutils.grab_contours(cnts)
 
 			# if len(cnts) > 0:
@@ -75,14 +117,20 @@ def main():
 			# for (x,y,w,h) in faces:
 				# center = ((w//2)+x, (h//2)+y)
 				# cur_frame = cv2.rectangle(cur_frame, (x,y),(x+w,y+h),(255,0,0),2)
-			cv2.imshow("cur_frame", cur_frame)
-			cv2.imshow('mask', mask)
+			if color == 'blue' or color == 'green':
+				cv2.imshow("cur_frame", cur_frame)
+				cv2.imshow('mask', mask)
+			elif color == 'red':
+				cv2.imshow("cur_frame", cur_frame)
+				cv2.imshow('mask', mask)
+				cv2.imshow("cur_frame1", cur_frame1)
+				cv2.imshow('mask1', mask1)
 
 			# print(np.transpose(mask.nonzero()[0]))
 
 			# cv2.imshow('res', res)
 
-			cv2.waitKey(3)
+			cv2.waitKey(1)
 		rate.sleep()
 
 if __name__ == '__main__':
