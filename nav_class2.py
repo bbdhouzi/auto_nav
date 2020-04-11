@@ -11,7 +11,7 @@ from geometry_msgs.msg import Twist
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
 
-angular_tolerance = 0.05
+angular_tolerance = 0.3
 
 class Navigation():
 	def __init__(self, linear_spd, angular_spd):
@@ -22,6 +22,7 @@ class Navigation():
 		self.lidar_data = np.array([])
 		self.bot_position = ()
 		self.occ_grid = np.array([])
+		self.prev_occ_recv = 0.0
 
 		self.bot_angular_range = range(-15,15)
 		self.stop_dist = 0.15
@@ -49,6 +50,7 @@ class Navigation():
 		self.inf_visible = False
 		self.in_motion = False
 		self.obstacle_detected = False
+		self.picking_direction = False
 
 		self.dist_to_trgt = 0
 		self.prev_dist = 99999999
@@ -59,7 +61,7 @@ class Navigation():
 	
 	def update_laserscan_data(self, data):
 		self.lidar_data = data
-		# self.inf_visible = (np.inf in data)\
+		self.inf_visible = (np.inf in data)
 		self.obstacle_check()
 
 	def update_occ_grid(self, grid, origin, resolution):
@@ -68,6 +70,12 @@ class Navigation():
 		self.map_res = resolution
 		self.map_height = len(grid)
 		self.map_width = len(grid[0])
+
+		cur_time = rospy.get_rostime().secs
+		if cur_time - self.prev_occ_recv > 10 and not self.picking_direction:
+			rospy.loginfo('[NAV][OCC] Checking target location')
+			self.pick_direction()
+			self.prev_occ_recv = cur_time
 		# if self.inf_visible:
 		# 	rospy.loginfo(self.inf_visible)
 		# 	inf_loc = np.where(self.lidar_data == np.inf)
@@ -196,8 +204,19 @@ class Navigation():
 		cv2.imshow('final', occ_map_disp)
 		cv2.waitKey(0)
 
+	def get_angle(self, pos):
+		cur_pos = self.swap_xy(self.bot_position)
+		target_pos = self.swap_xy(pos)
+
+		i_dist = target_pos[1] - cur_pos[1]
+		j_dist = target_pos[0] - cur_pos[0]
+
+		angle = math.atan2(j_dist, i_dist)
+		self.angle_to_target = angle
+		return angle
+
 	# get angle need to turn, accounting for yaw
-	def get_angle(self, target_pos_o):
+	def get_angle2(self, target_pos_o):
 		cur_pos = self.swap_xy(self.bot_position)
 		target_pos = self.swap_xy(target_pos_o)
 		yaw_pos = (int(cur_pos[0] + 10*math.sin(self.yaw)), int(cur_pos[1] + 10*math.cos(self.yaw)))
@@ -217,6 +236,7 @@ class Navigation():
 
 		angle = math.acos(cos_rule_rhs)
 		rospy.loginfo('[NAV][ANGLE] cos angle: %f', angle)
+		self.rviz_arrow(self.bot_position, angle, 0)
 		return angle
 
 	def target_reached(self, target):
@@ -244,7 +264,8 @@ class Navigation():
 	def obstacle_check(self):
 		lr2 = self.lidar_data[0,self.bot_angular_range]
 
-		list_to_check = [x < self.stop_dist and not (x == 0 or x == np.inf) for x in lr2]
+		list_to_check = [x < self.stop_dist and not (x == np.inf) for x in lr2]
+		# list_to_check = [x < self.stop_dist and not (x == 0 or x == np.inf) for x in lr2]
 		if np.any(list_to_check):
 			# rospy.loginfo(lr2[0])
 			rospy.logwarn('[NAV][TRGT] Obstacle in front!, recheck direction')
@@ -321,10 +342,22 @@ class Navigation():
 			self.rotate_bot(rot_angle)
 			rot_angle = self.get_angle(pos)
 
+	def rotate_to_target(self):
+		rot_angle = self.angle_to_target
+
+		while rot_angle > angular_tolerance:
+			self.rotate_bot(rot_angle)
+			rot_angle = self.get_angle(self.cur_target)
+			self.rviz_arrow(self.bot_position, self.yaw + rot_angle, 0)
+
+		if self.target_changed:
+			self.target_changed = False
+			self.rotate_to_target()
+
 	def get_furthest_visible(self, pos):
 		closest_edge = self.get_closest_edge(self.swap_xy(pos))
 		i,j = closest_edge
-		length = 3
+		length = 5
 		corners = [(i-length,j-length),(i-length,j+length),(i+length,j+length),(i+length,j-length)]
 		distances = [0,0,0,0]
 		dist_i = 0
@@ -334,11 +367,12 @@ class Navigation():
 				distances[dist_i] = self.get_dist_sqr(self.bot_position, corner)
 			dist_i += 1
 
-			furthest_visible = corners[distances.index(max(distances))]
-			self.rviz_marker(furthest_visible, 1)
+		furthest_visible = corners[distances.index(max(distances))]
+		self.rviz_marker(furthest_visible, 1)
 		return furthest_visible
 
 	def pick_direction(self):
+		self.picking_direction = True
 		unmapped_region = self.get_nearest_unmapped_region()
 		self.rviz_marker(unmapped_region, 0)
 		self.unmapped_region = unmapped_region
@@ -367,6 +401,7 @@ class Navigation():
 
 		self.angle_to_target = self.get_angle(target)
 
+		self.picking_direction = False
 		# if self.prev_target == ():
 		# 	self.prev_target = target
 		# 	return True, target, self.get_angle(target)
@@ -378,11 +413,13 @@ class Navigation():
 		# 	return False, target, self.get_angle(target)
 
 	def map_region(self):
-		rate = rospy.Rate(5)
+		rate = rospy.Rate(10)
 		while True:
 			if self.cur_target == ():
 				rospy.loginfo('no target yet')
 				self.pick_direction()
+				rate.sleep()
+				continue
 
 			rospy.loginfo('[NAV][CHCK] obstacle presence: %s', self.obstacle_detected)
 			if self.obstacle_detected:
@@ -395,6 +432,7 @@ class Navigation():
 				self.rotate_to_point(self.cur_target)
 				self.move_bot(self.linear_spd,0.0)
 				# time.sleep(1)
+				rate.sleep()
 				continue
 
 			# if self.inf_visible and self.in_motion:
@@ -405,21 +443,57 @@ class Navigation():
 				rospy.loginfo('stoppping because of target change')
 				self.target_changed = False
 				self.move_bot(0.0,0.0)
-				self.rotate_to_point(self.cur_target)
-				# self.rotate_bot(self.angle_to_target)
-
-			self.move_bot(self.linear_spd,0.0)
-
-			if self.target_reached(self.cur_target):
-				rospy.loginfo('Target reached, choosing new direction')
-				self.target_changed = True
-				self.pick_direction()
-			else:
+				# self.rotate_to_point(self.cur_target)
+				self.rotate_bot(self.angle_to_target+0.2)
+				self.move_bot(self.linear_spd,0.0)
 				rate.sleep()
+				continue
+
+			# if self.target_reached(self.cur_target):
+			# 	rospy.loginfo('Target reached, choosing new direction')
+			# 	# self.target_changed = True
+			# 	self.pick_direction()
+			if self.angle_to_target > 0.1:
+				self.rotate_to_point(self.cur_target)
+			self.move_bot(self.linear_spd, 0.0)
+			
+			rate.sleep()
 
 	def test_func(self, data):
+		rate = rospy.Rate(5)
 		self.pick_direction()
-		self.rotate_to_point(self.cur_target)
+		# self.rotate_to_point(self.cur_target)
+		# self.rotate_to_target()
+		self.rotate_bot(self.angle_to_target)
+		self.move_bot(self.linear_spd, 0.0)
+
+		while True:
+			# if self.path_blocked(self.bot_position, self.unmapped_region) or self.obstacle_detected:
+			if self.obstacle_detected:
+				rospy.logwarn('[OBS] Obstacle detected!')
+				self.move_bot(-self.linear_spd, 0.0)
+				time.sleep(1)
+				self.move_bot(0.0,0.0)
+
+				# self.pick_direction()
+				time.sleep(0.1)
+				# self.rotate_to_point(self.cur_target)
+			elif self.inf_visible:
+				self.move_bot(self.linear_spd, 0.0)
+			if self.angle_to_target > angular_tolerance:
+				# self.rotate_to_target()
+				self.rotate_bot(self.angle_to_target)
+			self.move_bot(self.linear_spd, 0.0)
+			rate.sleep()
+
+	def test_func2(self, data):
+		rospy.logwarn(self.yaw)
+		# self.move_bot(0.0,-self.angular_spd)
+		# time.sleep(30)
+		# self.move_bot(0.0,0.0)
+		self.rotate_bot(2)
+		rospy.logwarn(self.yaw)
+
 
 	def move_bot(self, linear_spd, angular_spd):
 		pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
@@ -433,9 +507,44 @@ class Navigation():
 		time.sleep(1)
 		pub.publish(twist)
 	
-	def rotate_bot(self, rot_angle):
+	def rotate_bot(self, angle):
+		current_yaw = np.copy(self.yaw)
+		target_yaw = angle
+
+		c_current_yaw = complex(math.cos(current_yaw), math.sin(current_yaw))
+		c_target_yaw = complex(math.cos(target_yaw), math.sin(target_yaw))
+
+		rospy.loginfo('[NAV][ROT] current yaw: %f | target yaw: %f', current_yaw, target_yaw)
+		c_change_dir = np.sign((c_target_yaw/c_current_yaw).imag)
+		rospy.logwarn('[NAV][ROT] Starting rotation')
+
+		c_dir_diff = c_change_dir
+		rate = rospy.Rate(5)
+		while c_change_dir * c_dir_diff > 0: 
+			current_yaw = np.copy(self.yaw)
+			c_current_yaw = complex(math.cos(current_yaw), math.sin(current_yaw))
+			c_dir_diff = np.sign((c_target_yaw/c_current_yaw).imag)
+			rem_ang_dist = abs(current_yaw - target_yaw)
+
+			if rem_ang_dist > 3:
+				self.move_bot(0.0, self.angular_spd * c_change_dir * 3)
+			elif rem_ang_dist > 2:
+				self.move_bot(0.0, self.angular_spd * c_change_dir * 2.5)
+			elif rem_ang_dist > 1:
+				self.move_bot(0.0, self.angular_spd * c_change_dir * 1.5)
+			elif rem_ang_dist > 0.3:
+				self.move_bot(0.0, self.angular_spd * c_change_dir)
+			else:
+				self.move_bot(0.0, self.angular_spd * c_change_dir * 0.5)
+
+			rate.sleep()
+
+		rospy.logwarn('[NAV][ROT] End yaw: %f', self.yaw)
+		self.move_bot(0.0,0.0)
+
+
+	def rotate_bot2(self, rot_angle):
 		# create Twist object
-		# twist = Twist()
 		# set the update rate to 1 Hz
 		rate = rospy.Rate(3)
 	
@@ -448,8 +557,9 @@ class Navigation():
 		c_yaw = complex(math.cos(current_yaw),math.sin(current_yaw))
 		# calculate desired yaw
 		# target_yaw = math.radians(rot_angle)
-		target_yaw = current_yaw + rot_angle
-		self.rviz_arrow(self.bot_position, target_yaw, 0)
+		# target_yaw = current_yaw + rot_angle
+		target_yaw = rot_angle
+		# self.rviz_arrow(self.bot_position, self.yaw + target_yaw, 0)
 		# target_yaw = rot_angle
 		# convert to complex notation
 		c_target_yaw = complex(math.cos(target_yaw),math.sin(target_yaw))
@@ -457,8 +567,8 @@ class Navigation():
 		# divide the two complex numbers to get the change in direction
 		c_change = c_target_yaw / c_yaw
 		# get the sign of the imaginary component to figure out which way we have to turn
-		# c_change_dir = np.sign(c_change.imag)
-		c_change_dir = 1.0 if rot_angle > math.pi else -1.0
+		c_change_dir = np.sign(c_change.imag)
+		# c_change_dir = 1.0 if rot_angle > math.pi else -1.0
 		# set linear speed to zero so the TurtleBot rotates on the spot
 		# twist.linear.x = 0.0
 		# set the direction to rotate
@@ -466,6 +576,7 @@ class Navigation():
 		# rospy.loginfo(twist.angular.z)
 		# start rotation
 		# pub.publish(twist)
+		rospy.logwarn('[NAV][ROT] Starting rotation')
 		self.move_bot(0.0, c_change_dir *self.angular_spd)
 	
 		# we will use the c_dir_diff variable to see if we can stop rotating
@@ -474,7 +585,7 @@ class Navigation():
 		# if the rotation direction was 1.0, then we will want to stop when the c_dir_diff
 		# becomes -1.0, and vice versa
 
-		prev_rem_ang_dist = target_yaw - current_yaw
+		prev_rem_ang_dist = abs(target_yaw - current_yaw)
 
 
 		rospy.loginfo('[NAV][ROT] Turning to face %f', target_yaw)
@@ -489,12 +600,13 @@ class Navigation():
 			# get the sign to see if we can stop
 			c_dir_diff = np.sign(c_change.imag)
 			# rospy.loginfo(['c_change_dir: ' + str(c_change_dir) + ' c_dir_diff: ' + str(c_dir_diff)])
-			rem_ang_dist = target_yaw - current_yaw
+			rem_ang_dist = abs(target_yaw - current_yaw)
 
 			# if rem_ang_dist > prev_rem_ang_dist:
-				# self.move_bot(0.0, c_change_dir * self.angular_spd * (-1))
+			# 	self.move_bot(0.0, c_change_dir * self.angular_spd * (-1))
+			# 	# c_change_dir *= -1
 			# else:
-				# prev_rem_ang_dist = rem_ang_dist
+			# 	prev_rem_ang_dist = rem_ang_dist
 
 
 			if rem_ang_dist > 3:
@@ -566,12 +678,12 @@ class Navigation():
 		nav_marker.color.a = 1.0
 
 		map_pub.publish(nav_marker)
-		rospy.loginfo('[NAV][RVIZ] Published marker at %s', str(pos))
+		rospy.loginfo('[NAV][RVIZ] Published marker at %s, type: %d', str(pos), marker_type)
 
 	def rviz_arrow(self, pos, angle, marker_type):
 		length = 1
-		pos2_x = int(pos[1] + length * math.sin(angle)) * self.map_res + self.map_origin.x
-		pos2_y = int(pos[0] + length * math.cos(angle)) * self.map_res + self.map_origin.y
+		pos2_x = int(pos[0] + length * math.sin(angle)) * self.map_res + self.map_origin.x
+		pos2_y = int(pos[1] + length * math.cos(angle)) * self.map_res + self.map_origin.y
 
 		pos1_x = pos[0] * self.map_res + self.map_origin.x
 		pos1_y = pos[1] * self.map_res + self.map_origin.y
