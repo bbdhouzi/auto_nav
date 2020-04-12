@@ -115,11 +115,13 @@ class Navigation():
 	# returns false if no unmapped regions found
 	def get_nearest_unmapped_region(self):
 		rospy.logdebug('[NAV][OCC] Finding nearest unmapped region')
-		pos_to_check = [self.bot_position]
-		self.checked_positions = []
+		# pos_to_check = [self.bot_position]
+		# self.checked_positions = []
 
 		for x in range(2):
 			rospy.logwarn(x)
+			pos_to_check = [self.bot_position]
+			self.checked_positions = []
 			for cur_pos in pos_to_check:
 				i,j = cur_pos
 				for next_pos in [(i-1,j), (i,j+1), (i+1,j), (i,j-1)]:
@@ -135,8 +137,7 @@ class Navigation():
 
 				if cur_pos in pos_to_check:
 					pos_to_check.remove(cur_pos)
-			pos_to_check = [self.bot_position]
-		
+
 		rospy.loginfo('[NAV][OCC] No unmapped region found!')
 		self.mapping_complete = True
 		# return False
