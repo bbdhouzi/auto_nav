@@ -227,11 +227,11 @@ class Navigation():
 		else:
 			target = unmapped_region
 
-		self.cur_target = target
-		if self.get_dist(self.cur_target, target) < 2:
-			self.target_changed = False
-		else:
-			self.target_changed = True
+		# self.cur_target = target
+		# if self.get_dist(self.cur_target, target) < 2:
+		# 	self.target_changed = False
+		# else:
+		# 	self.target_changed = True
 
 		self.angle_to_target = self.get_angle(target)
 
@@ -400,6 +400,7 @@ class Navigation():
 			c_current_yaw = complex(math.cos(current_yaw), math.sin(current_yaw))
 			c_dir_diff = np.sign((c_target_yaw/c_current_yaw).imag)
 			rem_ang_dist = abs(current_yaw - target_yaw)
+			
 			if rem_ang_dist > math.pi:
 				rem_ang_dist = (2*math.pi) - rem_ang_dist
 
