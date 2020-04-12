@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-
+import rospy
+from std_msgs.msg import String
 import time
 import RPi.GPIO as gp
 
@@ -48,3 +49,19 @@ try:
 except KeyboardInterrupt:
     #p.stop()
     gp.cleanup()
+
+#Message handler
+def CommandCallback(commandMessage): #sample command - "shoot 20" - to shoot at 20 degrees angle
+    command = commandMessage.data
+    if command.split()[0] == 'shoot':
+        print('Launching Projectile!')
+        change_pos(command.split()[1], 30)
+
+rospy.init_node('servo13/18')
+
+rospy.Subscriber('command', String, CommandCallback)
+
+rospy.spin()
+
+#rostopic pub -1 /command std_msgs/String "shoot 20"
+#need to run above code from the nav_class or whatever file decides when to shoot in the terminal
