@@ -441,53 +441,6 @@ class Navigation():
 		self.update_map()
 		return self.occ_grid
 
-
-
-
-	def map_region2(self):
-		self.pick_direction()
-		self.rotate_bot(self.angle_to_target)
-		self.move_bot(self.linear_spd, 0.0)
-		self.home_loc = self.bot_position
-
-		rate = rospy.Rate(3)
-		while True:
-			if self.mapping_complete:
-				return self.occ_grid
-			if self.obstacle_detected:
-				rospy.logwarn('[NAV][OBS] Obstacle detected!')
-				if self.is_rotating:
-					self.move_bot(-1*self.linear_spd, 0.0)
-					self.is_rotating = False
-				else:
-					self.move_bot(-2*self.linear_spd, 0.0)
-
-				time.sleep(1)
-				self.move_bot(0.0,0.0)
-				time.sleep(1)
-				self.pick_direction()
-				# self.rotate_bot(self.get_angle(self.cur_target))
-				self.rotate_bot(self.angle_to_target)
-				self.move_bot(self.linear_spd, 0.0)
-
-			elif self.target_reached(self.cur_target):
-				rospy.loginfo('[NAV][TRGT] Reached target! changing direction')
-				self.move_bot(0.0,0.0)
-				time.sleep(2)
-				self.pick_direction()
-				# self.rotate_bot(self.get_angle(self.cur_target))
-				self.rotate_bot(self.angle_to_target)
-				self.move_bot(self.linear_spd, 0.0)
-
-			elif self.angle_to_target > angular_tolerance:
-				rospy.logwarn('[NAV][TRGT] angular tolerance exceeeded, adjusting yaw')
-				# self.rotate_to_target()
-				self.pick_direction()
-				self.rotate_bot(self.get_angle(self.cur_target))
-				self.move_bot(self.linear_spd, 0.0)
-			rate.sleep()
-
-
 	def return_to_home(self):
 		rate = rospy.Rate(3)
 		self.update_map()
