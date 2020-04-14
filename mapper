@@ -105,13 +105,15 @@ def mapper():
 
 	start_time = time.time()
 
-	ret_map = navigator.map_region()
+	navigator.test_funct('')
 
-	with open('maptime.txt', 'w+') as f:
-		f.write("Elapsed time: " + str(time.time() - start_time))
+	# ret_map = navigator.map_region()
 
-	cv2.imwrite('maze_map.png', ret_map)
-	cv2.imwrite('maze_map2.png', navigator.occ_map_raw)
+	# with open('maptime.txt', 'w+') as f:
+	# 	f.write("Elapsed time: " + str(time.time() - start_time))
+
+	# cv2.imwrite('maze_map.png', ret_map)
+	# cv2.imwrite('maze_map2.png', navigator.occ_map_raw)
 
 	# navigator.return_to_home()
 

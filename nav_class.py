@@ -239,6 +239,8 @@ class Navigation():
 				unmapped_region = self.get_nearest_unmapped_region()
 				self.rviz_marker(unmapped_region, 0)
 				self.unmapped_region = unmapped_region
+			else:
+				return
 
 			if final_target is not None:
 				unmapped_region = final_target
@@ -291,21 +293,21 @@ class Navigation():
 		map_overlay = np.zeros((self.map_height, self.map_width, 3), np.uint8)
 		cv2.circle(map_overlay, self.swap_xy(self.bot_position), 3, (0,0,255), -1)
 
-		unmapped_region = self.get_nearest_unmapped_region()
-		cv2.circle(map_overlay, self.swap_xy(self.unmapped_region), 3, (128,128,255), -1)
+		# unmapped_region = self.get_nearest_unmapped_region()
+		# cv2.circle(map_overlay, self.swap_xy(self.unmapped_region), 3, (128,128,255), -1)
 
-		if refresh:
-			closest_edge = self.get_closest_edge(self.bot_position)
-			cv2.circle(map_overlay, self.swap_xy(closest_edge), 3, (0,255,0), -1)
+		# if refresh:
+		# 	closest_edge = self.get_closest_edge(self.bot_position)
+		# 	cv2.circle(map_overlay, self.swap_xy(closest_edge), 3, (0,255,0), -1)
 
 		map_overlay = cv2.bitwise_or(map_overlay, self.edge_map)
 		occ_map_disp = cv2.bitwise_or(self.occ_map, map_overlay)
 
 		# cv2.imshow('occ_map', self.occ_map)
-		# cv2.imshow('edges', self.edge_map)
+		cv2.imshow('edges', self.edge_map)
 		# cv2.imshow('map_overlay', map_overlay)
-		# cv2.imshow('final', occ_map_disp)
-		# cv2.waitKey(0)
+		cv2.imshow('final', occ_map_disp)
+		cv2.waitKey(0)
 
 	def get_angle(self, pos):
 		cur_pos = self.swap_xy(self.bot_position)
@@ -440,6 +442,11 @@ class Navigation():
 		rospy.loginfo('its done mate')
 		self.update_map()
 		return self.occ_grid
+
+	def test_funct(self, data):
+		self.update_map()
+		self.update_edges()
+		self.display_map()
 
 	def return_to_home(self):
 		rate = rospy.Rate(3)
