@@ -69,7 +69,7 @@ class Navigation():
 		self.lidar_data = data
 		self.lidar_data_front_wide = data[0,self.bot_angular_range_obs]
 		self.lidar_data_front_narrow = data[0, self.bot_angular_range_inf]
-		self.inf_visible = (np.inf in self.lidar_data_front_narrow)
+		self.inf_visible = (0.0 in self.lidar_data_front_narrow)
 		self.obstacle_check()
 
 	def update_occ_grid(self, grid, origin, resolution):
