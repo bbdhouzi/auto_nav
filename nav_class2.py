@@ -47,7 +47,7 @@ class Navigation():
 		self.pseudo_route = []	# list of edges/unmapped regions followed
 		self.main_route = []	# list of actual positions the bot will follow
 
-		self.unmapped_region = ()
+		self.unmapped_region = None
 		self.prev_target = ()
 		self.cur_target = ()
 		self.target_changed = False
@@ -57,6 +57,9 @@ class Navigation():
 		self.is_rotating = False
 		self.obstacle_detected = False
 		self.picking_direction = False
+		self.should_scan_occ = True
+
+		self.attempts_to_reach_unmapped = 0
 
 		self.dist_to_trgt = 0
 		self.prev_dist = 99999999
@@ -78,6 +81,9 @@ class Navigation():
 		self.map_res = resolution
 		self.map_height = len(grid)
 		self.map_width = len(grid[0])
+
+		if self.unmapped_region is not None and grid[self.unmapped_region] != 0:
+			self.should_scan_occ = True
 
 	def update_bot_pos(self, data):
 		self.bot_position = data
@@ -105,36 +111,26 @@ class Navigation():
 	# finds the nearest unmapped region
 	# returns false if no unmapped regions found
 	def get_nearest_unmapped_region(self):
-		rospy.logdebug('[NAV][OCC] Finding nearest unmapped region')
-		pos_to_check = [self.bot_position]
-		self.checked_positions = []
+		rospy.logwarn('[NAV][OCC] Finding next unmapped_region')
+		self.should_scan_occ = False
+		pos_to_check = [self.unmapped_region]
+		for cur_pos in pos_to_check:
+			i,j = cur_pos
+			for next_pos in [(i-1,j), (i,j+1), (i+1,j), (i,j-1)]:
+				if next_pos not in self.checked_positions:
+					if self.occ_grid[next_pos] == 0:
+						rospy.loginfo('[NAV][OCC] Found next unmapped region at %s', str(next_pos))
+						self.unmapped_region = next_pos
+						self.rviz_marker(self.unmapped_region, 0)
+						return 
+					elif self.occ_grid[next_pos] == 1:
+						pos_to_check.append(next_pos)
 
-		time.sleep(0.5)
-		if True:
-		# for x in range(2):
-			# rospy.logwarn(x)
-			# pos_to_check = [self.bot_position]
-			# self.checked_positions = []
-			for cur_pos in pos_to_check:
-				i,j = cur_pos
-				for next_pos in [(i-1,j), (i,j+1), (i+1,j), (i,j-1)]:
-					if next_pos not in self.checked_positions:
-						if self.occ_grid[next_pos] == 0:
-							rospy.loginfo('[NAV][OCC] Found nearest unmapped region at %s', str(next_pos))
-							self.pseudo_route.insert(0, next_pos)
-							self.rviz_marker(next_pos, 0)
-							return next_pos
-						elif self.occ_grid[next_pos] == 1:
-							pos_to_check.append(next_pos)
-				self.checked_positions.append(cur_pos)
+			self.checked_positions.append(cur_pos)
 
-				if cur_pos in pos_to_check:
-					pos_to_check.remove(cur_pos)
-
-		rospy.loginfo('[NAV][OCC] No unmapped region found!')
+			if cur_pos in pos_to_check:
+				pos_to_check.remove(cur_pos)
 		self.mapping_complete = True
-		return (0,0)
-		# exit()
 	
 	# update occ_map and occ_map_raw
 	def update_map(self):
@@ -217,9 +213,9 @@ class Navigation():
 				return
 			rospy.loginfo('[NAV][TRGT] No visible corners found!')
 			self.edges_ordered.pop(0)
-			closest_edge = self.swap_xy(self.edges_ordered[0])
+			closest_edge = self.edges_ordered[0]
 			rospy.loginfo('[NAV][TRGT] Checking with next closest edge at %s', str(closest_edge))
-			self.rviz_marker(closest_edge, 3)
+			self.rviz_marker(self.swap_xy(closest_edge), 3)
 			distances = [0,0,0,0,0,0,0,0]
 			corners = internal_func()
 			# self.cur_target = corners[0]
@@ -235,23 +231,30 @@ class Navigation():
 	def pick_direction(self, final_target=None):
 		def internal_func():
 			self.picking_direction = True
-			if not self.mapping_complete:
-				unmapped_region = self.get_nearest_unmapped_region()
-				self.rviz_marker(unmapped_region, 0)
-				self.unmapped_region = unmapped_region
+			if self.should_scan_occ:
+				self.get_nearest_unmapped_region()
+				self.attempts_to_reach_unmapped = 0
+			else:
+				self.attempts_to_reach_unmapped += 1
+				if self.attempts_to_reach_unmapped > 3:
+					self.get_nearest_unmapped_region()
+					self.attempts_to_reach_unmapped = 0
 
-			if final_target is not None:
-				unmapped_region = final_target
+			# if not self.mapping_complete:
+				# unmapped_region = self.get_nearest_unmapped_region()
+
+			# if final_target is not None:
+				# unmapped_region = final_target
 
 			self.update_map()
 			target = ()
-			if self.path_blocked(self.bot_position, unmapped_region):
-				target = self.get_furthest_visible(unmapped_region)
+			if self.path_blocked(self.bot_position, self.unmapped_region):
+				target = self.get_furthest_visible(self.unmapped_region)
 				if not target:
 					time.sleep(3)
-					target = self.get_furthest_visible(unmapped_region)
+					target = self.get_furthest_visible(self.unmapped_region)
 			else:
-				target = unmapped_region
+				target = self.unmapped_region
 
 			self.cur_target = target
 			self.angle_to_target = self.get_angle(target)
@@ -318,37 +321,6 @@ class Navigation():
 		self.angle_to_target = angle
 		return angle
 
-	def target_reached(self, target):
-		if self.inf_visible:
-			self.move_bot(3*self.linear_spd, 0.0)
-			return False
-		cur_dist = self.get_dist(self.bot_position, self.cur_target)
-		rospy.loginfo('[NAV][TRGT] Current distance to target: %d', cur_dist)
-
-		if cur_dist > self.prev_dist:
-			rospy.loginfo('[NAV][TRGT] Went too far! recheck direction')
-			self.prev_dist = 999999999
-			return True
-		elif cur_dist <= 4:
-			self.prev_dist = 999999999
-			rospy.loginfo('[NAV][TRGT] Target Reached!')
-			return True
-		else:
-			if cur_dist == self.prev_dist and cur_dist < 6:
-				self.move_bot(0.5 * self.linear_spd, 0.0)
-				# return False
-			self.prev_dist = cur_dist
-			if cur_dist > 14:
-				self.move_bot(2 * self.linear_spd, 0.0)
-			elif cur_dist > 10:
-				self.move_bot(1.5 * self.linear_spd, 0.0)
-			elif cur_dist > 6:
-				self.move_bot(self.linear_spd, 0.0)
-			else:
-				self.move_bot(0.5 * self.linear_spd, 0.0)
-
-			return False
-
 	# Checks current status of target and bots position
 	# Return codes:
 	#	0: Target reached
@@ -393,6 +365,8 @@ class Navigation():
 		self.move_bot(self.linear_spd, 0.0)
 
 	def map_region(self):
+		self.unmapped_region = self.bot_position
+		self.get_nearest_unmapped_region()
 		self.move_to_target()
 
 		rate = rospy.Rate(3)
@@ -438,55 +412,7 @@ class Navigation():
 
 			rate.sleep()
 		rospy.loginfo('its done mate')
-		self.update_map()
 		return self.occ_grid
-
-
-
-
-	def map_region2(self):
-		self.pick_direction()
-		self.rotate_bot(self.angle_to_target)
-		self.move_bot(self.linear_spd, 0.0)
-		self.home_loc = self.bot_position
-
-		rate = rospy.Rate(3)
-		while True:
-			if self.mapping_complete:
-				return self.occ_grid
-			if self.obstacle_detected:
-				rospy.logwarn('[NAV][OBS] Obstacle detected!')
-				if self.is_rotating:
-					self.move_bot(-1*self.linear_spd, 0.0)
-					self.is_rotating = False
-				else:
-					self.move_bot(-2*self.linear_spd, 0.0)
-
-				time.sleep(1)
-				self.move_bot(0.0,0.0)
-				time.sleep(1)
-				self.pick_direction()
-				# self.rotate_bot(self.get_angle(self.cur_target))
-				self.rotate_bot(self.angle_to_target)
-				self.move_bot(self.linear_spd, 0.0)
-
-			elif self.target_reached(self.cur_target):
-				rospy.loginfo('[NAV][TRGT] Reached target! changing direction')
-				self.move_bot(0.0,0.0)
-				time.sleep(2)
-				self.pick_direction()
-				# self.rotate_bot(self.get_angle(self.cur_target))
-				self.rotate_bot(self.angle_to_target)
-				self.move_bot(self.linear_spd, 0.0)
-
-			elif self.angle_to_target > angular_tolerance:
-				rospy.logwarn('[NAV][TRGT] angular tolerance exceeeded, adjusting yaw')
-				# self.rotate_to_target()
-				self.pick_direction()
-				self.rotate_bot(self.get_angle(self.cur_target))
-				self.move_bot(self.linear_spd, 0.0)
-			rate.sleep()
-
 
 	def return_to_home(self):
 		rate = rospy.Rate(3)

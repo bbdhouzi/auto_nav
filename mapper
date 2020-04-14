@@ -103,9 +103,20 @@ def mapper():
 	rospy.on_shutdown(stopbot)
 	rospy.sleep(3)
 
-	navigator.map_region()
+	start_time = time.time()
 
-	rospy.spin()
+	ret_map = navigator.map_region()
+
+	with open('maptime.txt', 'w+') as f:
+		f.write("Elapsed time: " + str(time.time() - start_time))
+
+	cv2.imwrite('maze_map.png', ret_map)
+	cv2.imwrite('maze_map2.png', navigator.occ_map_raw)
+
+	# navigator.return_to_home()
+
+	# rospy.spin()
+	exit()
 
 if __name__ == '__main__':
 	try:
