@@ -27,7 +27,7 @@ class Navigation():
 		self.prev_occ_recv = 0.0
 		self.home_loc = (0,0)
 
-		self.bot_angular_range_obs = range(-30,30)
+		self.bot_angular_range_obs = range(-20,20)
 		self.bot_angular_range_inf = range(-10,10)
 		self.stop_dist = 0.35
 
@@ -58,6 +58,7 @@ class Navigation():
 		self.is_rotating = False
 		self.obstacle_detected = False
 		self.picking_direction = False
+		self.corner_unmapped_visible = True
 
 		self.dist_to_trgt = 0
 		self.prev_dist = 99999999
@@ -85,8 +86,9 @@ class Navigation():
 		self.bot_position = data
 
 	def obstacle_check(self):
-		list_to_check = [0.05 < x < self.stop_dist and not (x == np.inf) for x in self.lidar_data_front_wide]
-		if np.any(list_to_check):
+		# list_to_check = [0.05 < x < self.stop_dist and not (x == np.inf) for x in self.lidar_data_front_wide]
+		# if np.any(list_to_check):
+		if np.any([0.05 < x < self.stop_dist_far and not not (x== np.inf) for x in self.lidar_data_front_wide]) or np.any([0.05 < x < 0.08 and not (x == np.inf) for x in self.lidar_data_front_narrow]):
 			rospy.logwarn('[NAV][TRGT] Obstacle in front!, recheck direction')
 			self.obstacle_detected = True
 		else:
@@ -197,54 +199,29 @@ class Navigation():
 			dist_i = 0
 
 			for corner in corners:
-				# if not self.path_blocked(self.bot_position, corner) and abs(self.get_angle(closest_edge) - self.get_angle(corner)) <= (2*math.pi/3):
-				if not self.path_blocked(self.bot_position, corner) and not self.path_blocked(corner, closest_edge):
+				if not self.path_blocked(self.bot_position, corner) and abs(self.get_angle(closest_edge) - self.get_angle(corner)) <= (2*math.pi/3):
+				# if not self.path_blocked(self.bot_position, corner) and not self.path_blocked(corner, closest_edge):
 					distances[dist_i] = self.get_dist_sqr(self.bot_position, corner)
-					# rospy.logwarn(dist_i)
 				dist_i += 1
-			if not any(distances):
-				rospy.loginfo(distances)
-				dist_i = 0
-				for corner in corners:
-					if not self.path_blocked(self.bot_position, corner) and abs(self.get_angle(closest_edge) - self.get_angle(corner)) <= (2*math.pi/3):
-						distances[dist_i] = self.get_dist_sqr(self.bot_position, corner)
-					dist_i += 1
+			# if not any(distances):
+			# 	self.corner_unmapped_visible = False
+			# 	dist_i = 0
+			# 	for corner in corners:
+			# 		if not self.path_blocked(self.bot_position, corner) and abs(self.get_angle(closest_edge) - self.get_angle(corner)) <= (2*math.pi/3):
+			# 			distances[dist_i] = self.get_dist_sqr(self.bot_position, corner)
+			# 		dist_i += 1
+			# else:
+			# 	self.corner_unmapped_visible = True
 			return corners
-
 		closest_edge = self.get_closest_edge(self.swap_xy(pos))
 		distances = [0,0,0,0,0,0,0,0]
-
-		# if self.get_dist(self.bot_position, closest_edge) < 3:
-			# self.eoi.append(closest_edge)
-		# 	self.edges_ordered.pop(0)
-		# 	closest_edge = self.swap_xy(self.edges_ordered[0])
 
 		corners = internal_func()
 
 		if not any(distances):
-			# time.sleep(2)
-			# corners = internal_func()
 			rospy.logwarn('corner not visible')
 			closest_edge = self.get_closest_edge(self.swap_xy(self.bot_position))
 			corners = internal_func()
-
-		# while not any(distances):
-		# 	rospy.logwarn(distances)
-		# 	rospy.loginfo('[NAV][TRGT] No visible corners found!')
-		# 	self.edges_ordered.pop(0)
-		# 	if len(self.edges_ordered) > 0:
-		# 		# closest_edge = self.swap_xy(self.edges_ordered[0])
-		# 		closest_edge = self.swap_xy(self.edges_ordered[0])
-		# 	else:
-		# 		rospy.logwarn('[NAV][TRGT] Critical failure, no edges with visible corners')
-		# 		exit()
-		# 	rospy.loginfo('[NAV][TRGT] Checking with next closest edge at %s', str(closest_edge))
-		# 	self.rviz_marker(closest_edge, 3)
-		# 	distances = [0,0,0,0,0,0,0,0]
-		# 	corners = internal_func()
-		# 	# self.cur_target = corners[0]
-		# 	# self.display_map()
-		# 	# return False
 
 		furthest_visible = corners[distances.index(max(distances))]
 		# rospy.loginfo(distances)
@@ -283,6 +260,9 @@ class Navigation():
 			self.picking_direction = False
 
 		internal_func()
+
+		# if not self.corner_unmapped_visible:
+			# internal_func()
 		# if self.angle_to_target > math.pi/2 or self.angle_to_target < (-1 * math.pi/2):\
 		if abs(self.yaw - self.angle_to_target) > math.pi/2:
 				rospy.logwarn("[NAV][ANGLE] Situation calls for turning backwards, rechecking direction")
