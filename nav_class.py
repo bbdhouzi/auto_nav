@@ -27,9 +27,10 @@ class Navigation():
 		self.prev_occ_recv = 0.0
 		self.home_loc = (0,0)
 
-		self.bot_angular_range_obs = range(-20,20)
+		self.bot_angular_range_obs = range(-30,30)
 		self.bot_angular_range_inf = range(-10,10)
-		self.stop_dist = 0.35
+		self.stop_dist_far = 0.35
+		self.stop_dist_near = 0.08
 
 		self.map_origin = ()
 		self.map_height = 0
@@ -86,9 +87,9 @@ class Navigation():
 		self.bot_position = data
 
 	def obstacle_check(self):
-		# list_to_check = [0.05 < x < self.stop_dist and not (x == np.inf) for x in self.lidar_data_front_wide]
-		# if np.any(list_to_check):
-		if np.any([0.05 < x < self.stop_dist_far and not not (x== np.inf) for x in self.lidar_data_front_wide]) or np.any([0.05 < x < 0.08 and not (x == np.inf) for x in self.lidar_data_front_narrow]):
+		list_to_check = [0.05 < x < self.stop_dist_far and not (x == np.inf) for x in self.lidar_data_front_wide]
+		if np.any(list_to_check):
+		# if np.any([0.05 < x < self.stop_dist_far and not (x== np.inf) for x in self.lidar_data_front_wide]) or np.any([0.05 < x < self.stop_dist_near and not (x == np.inf) for x in self.lidar_data_front_wide]):
 			rospy.logwarn('[NAV][TRGT] Obstacle in front!, recheck direction')
 			self.obstacle_detected = True
 		else:
