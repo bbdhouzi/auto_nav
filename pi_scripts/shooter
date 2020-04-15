@@ -1,0 +1,68 @@
+#!/usr/bin/env python
+
+import rospy
+from std_msgs.msg import Int8
+from std_msgs.msg import Bool
+
+import RPi.GPIO as gp
+import time
+
+firing_pin = 13
+aiming_pin = 18
+reloading_pin = 12
+
+firing_angle = 30
+firing_time = 0.6
+
+reloading_angle = 0 #fix this yo
+reloading_home = 180
+reloading_time = 0.15
+
+def get_dc(angle):
+	return (int(angle)/18) + 2.5
+
+def firing_cb(msg):
+	if msg.data:
+		pwm = gp.PWM(firing_pin, 50)
+		pwm.start(get_dc(firing_angle))
+		time.sleep(firing_time)
+		pwm.ChangeDutyCycle(get_dc(0))
+		time.sleep(0.5)
+		pwm.stop()
+
+		time.sleep(1)
+		reload_chamber()
+
+def aiming_cb(msg):
+	pwm = gp.PWM(aiming_pin, 50)
+	pwm.start(get_dc(msg.data))
+	time.sleep(1)
+	pwm.stop()
+
+def reload_chamber():
+	pwm = gp.PWM(reloading_pin, 50)
+	pwm.start(get_dc(reloading_angle))
+	time.sleep(reloading_time)
+	pwm.ChangeDutyCycle(get_dc(reloading_home))
+	time.sleep(1)
+	pwm.stop()
+
+
+if __name__ == '__main__':
+	try:
+		rospy.init_node('shooter', anonymous=True)
+		
+		gp.setmode(gp.BCM)
+		gp.setup(firing_pin, gp.OUT)
+		gp.setup(aiming_pin, gp.OUT)
+		gp.setup(reloading_pin, gp.OUT)
+		
+		rospy.Subsciber('/servo/aiming', Int8, aiming_cb)
+		rospy.Subsciber('/servo/firing', Bool, firing_cb)
+
+		rospy.spin()
+
+	except ROSInterruptHandler:
+		exit()
+	except KeyboardInterrupt:
+		exit()
