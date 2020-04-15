@@ -319,7 +319,7 @@ class Navigation():
 				self.move_bot(2.5*self.linear_spd, 0.0)
 			return False
 
-	def map_region(self, data):
+	def map_region(self):
 		self.pick_direction()
 		self.rotate_bot(self.angle_to_target)
 		self.move_bot(self.linear_spd, 0.0)
