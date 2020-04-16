@@ -157,6 +157,14 @@ def mapper():
 				navigator.move_bot(0.0, rotate_speed)
 
 			rate.sleep()
+		
+		while True:
+			if laser_range[0] < 18:
+				navigator.move_bot(-0.5 * linear_speed, 0.0)
+			elif laser_range[0] > 22:
+				navigator.move_bot(0.5 * linear_speed, 0.0)
+			else:
+				break
 
 		pub_aim.publish(cam_angle + (21.2*vertical_amount))
 		time.sleep(3)
