@@ -34,11 +34,11 @@ def image_cb(msg):
 		prev_image_time = cur_time
 
 
-def image_analysis(msg):
+def image_analysis():
 	if latest_frame is None:
-		return 
+		return False, 0, 0
 	
-	hsv_frame(latest_frame, cv2.COLOR_BGR2HSV)
+	hsv_frame = cv2.cvtColor(latest_frame, cv2.COLOR_BGR2HSV)
 	# if target_color  == 0:
 	# 	hsv_lower_range_1 = np.array([])
 	# 	hsv_upper_range_1 = np.array([])
