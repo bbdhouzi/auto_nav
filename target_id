@@ -11,8 +11,9 @@ import cv2
 from cv_bridge import CvBridge, CvBridgeError
 
 import numpy as np
+import time 
 
-prev_image_time = 0
+prev_image_time = 0.0
 latest_frame = None
 kernel = np.ones((10,10), np.uint8)
 
@@ -26,15 +27,16 @@ cv_bridge = CvBridge()
 
 def image_cb(msg):
 	global latest_frame
+	global prev_image_time
 	cur_time = time.time()
 	if cur_time - prev_image_time > 0.5:
-		latest_frame = cv_bridge.imgmsg_to_cv2(data, "bgr8")
+		latest_frame = cv_bridge.imgmsg_to_cv2(msg, "bgr8")
 		prev_image_time = cur_time
 
 
 def image_analysis(msg):
 	if latest_frame is None:
-		return
+		return 
 	
 	hsv_frame(latest_frame, cv2.COLOR_BGR2HSV)
 	# if target_color  == 0:
