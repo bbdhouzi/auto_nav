@@ -36,6 +36,12 @@ checked_positions = []
 map_height = 0
 map_width = 0
 
+target_in_sight = False
+horizontal_amount = 0
+vertical_amount = 0
+
+cam_angle = 30
+
 navigator = Navigation(linear_speed, rotate_speed)
 
 def odom_cb(msg):
@@ -79,6 +85,22 @@ def occ_cb(msg, tf_buf):
 	navigator.update_bot_pos(bot_pos)
 	navigator.update_occ_grid(occ_grid, map_origin, map_res)
 
+def target_identified_cb(msg):
+	global target_in_sight
+	if msg.data:
+		target_in_sight = True
+		navigator.update_target_pos()
+	else:
+		target_in_sight = False
+
+def target_horizontal_cb(msg):
+	global horizontal_amount
+	horizontal_amount = msg.data
+
+def target_vertical_cb(msg):
+	global vertical_amount
+	vertical_amount = msg.data
+
 def stopbot():
     # publish to cmd_vel to move TurtleBot
     pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
@@ -100,6 +122,13 @@ def mapper():
 	rospy.Subscriber('scan', LaserScan, laser_scan_cb)
 	rospy.Subscriber('map', OccupancyGrid, occ_cb, tf_buf)
 
+	rospy.Subscriber('/target/identified', Bool, target_identified_cb)
+	rospy.Subscriber('/target/horizontal', Int8, target_horizontal_cb)
+	rospy.Subscriber('/target/vertical', Int8, target_vertical_cb)
+
+	pub_aim = rospy.Publisher('/servo/aiming', Int8, queue_size=10)
+	pub_fire = rospy.Publisher('/servo/firing', Bool, queue_size=10)
+
 	rospy.on_shutdown(stopbot)
 	rospy.sleep(3)
 
@@ -116,6 +145,22 @@ def mapper():
 	cv2.imwrite('maze_map2.png', navigator.occ_map_raw)
 
 	# navigator.return_to_home()
+	if navigator.clr_target_located:
+		# navigator.move_to_clr_trgt()
+		rate = rospy.Rate(5)
+		while not target_in_sight and abs(horizontal_amount) > 10:
+			if not target_in_sight:
+				navigator.move_bot(0.0,rotate_speed)
+			if horizontal_amount > 10:
+				navigator.move_bot(0.0,-1*rotate_speed)
+			elif horizontal_amount < 10:
+				navigator.move_bot(0.0, rotate_speed)
+
+			rate.sleep()
+
+		pub_aim.publish(cam_angle + (21.2*vertical_amount))
+		time.sleep(3)
+		pub_fire.publish(True)
 
 	# rospy.spin()
 	exit()

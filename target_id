@@ -52,14 +52,14 @@ def image_analysis(msg):
 	# mask = cv2.inRange(hsv_frame, hsv_lower_range, hsv_upper_range)
 
 	if target_color == 0:
-		hsv_lower_ranges = [np.array([]), np.array([])]
-		hsv_upper_ranges = [np.array([]), np.array([])]
+		hsv_lower_ranges = [np.array([0,127,127]), np.array([170,127,127])]
+		hsv_upper_ranges = [np.array([10,255,255]), np.array([180,255,255])]
 	elif target_color == 1:
-		hsv_lower_ranges = [np.array([])]
-		hsv_upper_ranges = [np.array([])]
+		hsv_lower_ranges = [np.array([55,127,127])]
+		hsv_upper_ranges = [np.array([65,255,255])]
 	elif target_color == 2:
-		hsv_lower_ranges = [np.array([])]
-		hsv_upper_ranges = [np.array([])]
+		hsv_lower_ranges = [np.array([110,127,127])]
+		hsv_upper_ranges = [np.array([130,255,255])]
 		
 	frame_width, frame_height, _ = latest_frame.shape
 	final_mask = np.zeros((frame_width, frame_height), np.uint8)
@@ -77,25 +77,35 @@ def image_analysis(msg):
 		x,y,w,h = cv2.boundingRect(largest_contour)
 		center = (x+(w//2), y+(h//2))
 
+		horizontal_amt = int(((frame_width/2 - center[0])/(frame_width/2)) * 100)
+		vertical_amt = int(((frame_height/2 - center[1])/(frame_height/2)) * 100)
+
 		cv2.rectangle(latest_frame, (x,y), (x+w, y+h), (0,0,255), 2)
 		cv2.rectangle(latest_frame, (center[0]-1, center[1]-1), (center[0]+1, center[1]+1), (0.255,0), 2)
 		cv2.imshow('latest frame', latest_frame)
 		cv2.imshow('mask', mask)
 		cv2.waitKey(1)
-		return True
-	return False
+		return True, horizontal_amt, vertical_amt
+	return False, 0, 0
 
 if __name__ == '__main__':
 	try:
 		rospy.init_node('target_id', anonymous=True)
 		rospy.Subscriber('raspicam_node/image', Image, image_cb)
-		pub = rospy.Publisher('/target/identified', Bool, queue_size=10)
-		rospy.Subscriber('/target/reached', Bool, target_fire_cb)
+		pub_visible = rospy.Publisher('/target/visible', Bool, queue_size=10)
+		pub_horizontal = rospy.Publisher('/target/horizontal', Int8, queue_size=10)
+		pub_vertical = rospy.Publisher('/target/vertical', Int8, queue_size=10)
+		# rospy.Subscriber('/target/reached', Bool, target_fire_cb)
 
 		rate = rospy.Rate(2)
 		while True:
-			if image_analysis():
-				pub.publish(True)
+			id_positive, horizontal_amt, vertical_amt = image_analysis()
+			if id_positive:
+				pub_visible.publish(True)
+				pub_horizontal.publish(horizontal_amt)
+				pub_vertical.publish(vertical_amt)
+			else:
+				pub_visible.publish(False)
 				# center_msg = UInt16MultiArray(data=[center[0], center[1]])
 			rate.sleep()
 

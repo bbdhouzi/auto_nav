@@ -64,6 +64,9 @@ class Navigation():
 		self.dist_to_trgt = 0
 		self.prev_dist = 99999999
 
+		self.clr_target_located = False
+		self.clr_target_location = ()
+
 	# methods to update sensor data
 	def update_yaw(self, data):
 		self.yaw = data
@@ -85,6 +88,10 @@ class Navigation():
 
 	def update_bot_pos(self, data):
 		self.bot_position = data
+
+	def update_target_pos(self, data):
+		if not clr_target_located:
+			self.clr_target_location = self.bot_position
 
 	def obstacle_check(self):
 		# list_to_check = [0.05 < x < self.stop_dist_far and not (x == np.inf) for x in self.lidar_data_front_wide]
