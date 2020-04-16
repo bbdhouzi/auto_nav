@@ -28,10 +28,10 @@ cv_bridge = CvBridge()
 def image_cb(msg):
 	global latest_frame
 	global prev_image_time
-	cur_time = time.time()
-	if cur_time - prev_image_time > 0.5:
-		latest_frame = cv_bridge.imgmsg_to_cv2(msg, "bgr8")
-		prev_image_time = cur_time
+	# cur_time = time.time()
+	# if cur_time - prev_image_time > 0.5:
+	latest_frame = cv_bridge.imgmsg_to_cv2(msg, "bgr8")
+		# prev_image_time = cur_time
 
 
 def image_analysis():
@@ -71,7 +71,11 @@ def image_analysis():
 		final_mask = cv2.bitwise_or(final_mask, mask)
 
 	final_mask = cv2.morphologyEx(final_mask, cv2.MORPH_OPEN, kernel)
-	_, contours, _ = cv2.findContours(final_mask,  cv2.RETR_EXTRERNAL, cv2.CHAIN_APPROX_NONE)
+	_, contours, _ = cv2.findContours(final_mask,  cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+	cv2.imshow('latest frame', latest_frame)
+	cv2.imshow('mask', mask)
+	cv2.waitKey(1)
 
 	if len(contours) > 0:
 		largest_contour = max(contours, key=cv2.contourArea)
@@ -99,7 +103,7 @@ if __name__ == '__main__':
 		pub_vertical = rospy.Publisher('/target/vertical', Int8, queue_size=10)
 		# rospy.Subscriber('/target/reached', Bool, target_fire_cb)
 
-		rate = rospy.Rate(2)
+		rate = rospy.Rate(10)
 		while True:
 			id_positive, horizontal_amt, vertical_amt = image_analysis()
 			if id_positive:
