@@ -109,7 +109,7 @@ if __name__ == '__main__':
 				# center_msg = UInt16MultiArray(data=[center[0], center[1]])
 			rate.sleep()
 
-	except ROSInterruptException:
+	except rospy.ROSInterruptException:
 		cv2.destroyAllWindows()
 		exit()
 	except KeyboardInterrupt:

@@ -57,12 +57,12 @@ if __name__ == '__main__':
 		gp.setup(aiming_pin, gp.OUT)
 		gp.setup(reloading_pin, gp.OUT)
 		
-		rospy.Subsciber('/servo/aiming', Int8, aiming_cb)
-		rospy.Subsciber('/servo/firing', Bool, firing_cb)
+		rospy.Subscriber('/servo/aiming', Int8, aiming_cb)
+		rospy.Subscriber('/servo/firing', Bool, firing_cb)
 
 		rospy.spin()
 
-	except ROSInterruptHandler:
+	except rospy.ROSInterruptException:
 		exit()
 	except KeyboardInterrupt:
 		exit()

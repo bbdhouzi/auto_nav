@@ -159,9 +159,9 @@ def mapper():
 			rate.sleep()
 		
 		while True:
-			if laser_range[0] < 18:
+			if laser_range[0] <= 0.18:
 				navigator.move_bot(-0.5 * linear_speed, 0.0)
-			elif laser_range[0] > 22:
+			elif laser_range[0] >= 0.22:
 				navigator.move_bot(0.5 * linear_speed, 0.0)
 			else:
 				break
