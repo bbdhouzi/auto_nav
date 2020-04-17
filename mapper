@@ -168,15 +168,15 @@ def mapper():
 
 			# 	rate.sleep()
 			
-			# while True:
-			# 	rospy.loginfo(2)
-			# 	if laser_range[0] <= 0.18:
-			# 		navigator.move_bot(-0.5 * linear_speed, 0.0)
-			# 	elif laser_range[0] >= 0.22:
-			# 		navigator.move_bot(0.5 * linear_speed, 0.0)
-			# 	else:
-			# 		navigator.move_bot(0.0,0.0)
-			# 		break
+			while True:
+				rospy.loginfo(2)
+				if laser_range[0] <= 0.18:
+					navigator.move_bot(-0.5 * linear_speed, 0.0)
+				elif laser_range[0] >= 0.22:
+					navigator.move_bot(0.5 * linear_speed, 0.0)
+				else:
+					navigator.move_bot(0.0,0.0)
+					break
 			rospy.logwarn('firing')
 			pub_aim.publish(cam_angle + (21.2*vertical_amount))
 			time.sleep(3)
