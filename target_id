@@ -5,7 +5,7 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image
 from std_msgs.msg import UInt16MultiArray
 from std_msgs.msg import Bool
-from std_msgs.msg import Int8
+from std_msgs.msg import Int16
 
 import cv2 
 from cv_bridge import CvBridge, CvBridgeError
@@ -100,8 +100,8 @@ if __name__ == '__main__':
 		rospy.init_node('target_id', anonymous=True)
 		rospy.Subscriber('raspicam_node/image', Image, image_cb)
 		pub_visible = rospy.Publisher('/target/visible', Bool, queue_size=10)
-		pub_horizontal = rospy.Publisher('/target/horizontal', Int8, queue_size=10)
-		pub_vertical = rospy.Publisher('/target/vertical', Int8, queue_size=10)
+		pub_horizontal = rospy.Publisher('/target/horizontal', Int16, queue_size=10)
+		pub_vertical = rospy.Publisher('/target/vertical', Int16, queue_size=10)
 		# rospy.Subscriber('/target/reached', Bool, target_fire_cb)
 
 		rate = rospy.Rate(10)
