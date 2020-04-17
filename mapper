@@ -100,10 +100,12 @@ def target_identified_cb(msg):
 
 def target_horizontal_cb(msg):
 	global horizontal_amount
+	rospy.loginfo(msg)
 	horizontal_amount = msg.data
 
 def target_vertical_cb(msg):
 	global vertical_amount
+	rospy.loginfo(msg)
 	vertical_amount = msg.data
 
 def stopbot():
