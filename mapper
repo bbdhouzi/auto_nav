@@ -94,6 +94,7 @@ def target_identified_cb(msg):
 	if msg.data == True:
 		rospy.logwarn('target identified')
 		target_in_sight = True
+		navigator.clr_target_located = True
 		# navigator.update_target_pos()
 	else:
 		target_in_sight = False
