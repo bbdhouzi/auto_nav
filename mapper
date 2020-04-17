@@ -90,7 +90,7 @@ def occ_cb(msg, tf_buf):
 
 def target_identified_cb(msg):
 	global target_in_sight
-	rospy.loginfo(msg)
+	# rospy.loginfo(msg)
 	if msg.data == True:
 		rospy.logwarn('target identified')
 		target_in_sight = True
@@ -101,12 +101,12 @@ def target_identified_cb(msg):
 
 def target_horizontal_cb(msg):
 	global horizontal_amount
-	rospy.loginfo(msg)
+	# rospy.loginfo(msg)
 	horizontal_amount = msg.data
 
 def target_vertical_cb(msg):
 	global vertical_amount
-	rospy.loginfo(msg)
+	# rospy.loginfo(msg)
 	vertical_amount = msg.data
 
 def stopbot():
@@ -156,17 +156,17 @@ def mapper():
 	while True:
 		if navigator.clr_target_located:
 			# navigator.move_to_clr_trgt()
-			rate = rospy.Rate(5)
-			while not target_in_sight and abs(horizontal_amount) > 10:
-				rospy.loginfo(1)
-				if not target_in_sight:
-					navigator.move_bot(0.0,rotate_speed)
-				if horizontal_amount > 10:
-					navigator.move_bot(0.0,-1*rotate_speed)
-				elif horizontal_amount < 10:
-					navigator.move_bot(0.0, rotate_speed)
+			# rate = rospy.Rate(5)
+			# while not target_in_sight and abs(horizontal_amount) > 10:
+			# 	rospy.loginfo(1)
+			# 	if not target_in_sight:
+			# 		navigator.move_bot(0.0,rotate_speed)
+			# 	if horizontal_amount > 10:
+			# 		navigator.move_bot(0.0,-1*rotate_speed)
+			# 	elif horizontal_amount < 10:
+			# 		navigator.move_bot(0.0, rotate_speed)
 
-				rate.sleep()
+			# 	rate.sleep()
 			
 			# while True:
 			# 	rospy.loginfo(2)
@@ -177,7 +177,7 @@ def mapper():
 			# 	else:
 			# 		navigator.move_bot(0.0,0.0)
 			# 		break
-
+			rospy.logwarn('firing')
 			pub_aim.publish(cam_angle + (21.2*vertical_amount))
 			time.sleep(3)
 			pub_fire.publish(True)
