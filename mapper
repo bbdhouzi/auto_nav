@@ -94,6 +94,7 @@ def target_identified_cb(msg):
 	if msg.data == True:
 		rospy.logwarn('target identified')
 		target_in_sight = True
+		navigator.clr_target_located = True
 		# navigator.update_target_pos()
 	else:
 		target_in_sight = False
@@ -152,31 +153,35 @@ def mapper():
 	# cv2.imwrite('maze_map2.png', navigator.occ_map_raw)
 
 	# navigator.return_to_home()
-	if navigator.clr_target_located:
-		# navigator.move_to_clr_trgt()
-		rate = rospy.Rate(5)
-		while not target_in_sight and abs(horizontal_amount) > 10:
-			if not target_in_sight:
-				navigator.move_bot(0.0,rotate_speed)
-			if horizontal_amount > 10:
-				navigator.move_bot(0.0,-1*rotate_speed)
-			elif horizontal_amount < 10:
-				navigator.move_bot(0.0, rotate_speed)
+	while True:
+		if navigator.clr_target_located:
+			# navigator.move_to_clr_trgt()
+			rate = rospy.Rate(5)
+			while not target_in_sight and abs(horizontal_amount) > 10:
+				rospy.loginfo(1)
+				if not target_in_sight:
+					navigator.move_bot(0.0,rotate_speed)
+				if horizontal_amount > 10:
+					navigator.move_bot(0.0,-1*rotate_speed)
+				elif horizontal_amount < 10:
+					navigator.move_bot(0.0, rotate_speed)
 
-			rate.sleep()
-		
-		while True:
-			if laser_range[0] <= 0.18:
-				navigator.move_bot(-0.5 * linear_speed, 0.0)
-			elif laser_range[0] >= 0.22:
-				navigator.move_bot(0.5 * linear_speed, 0.0)
-			else:
-				navigator.move_bot(0.0,0.0)
-				break
+				rate.sleep()
+			
+			# while True:
+			# 	rospy.loginfo(2)
+			# 	if laser_range[0] <= 0.18:
+			# 		navigator.move_bot(-0.5 * linear_speed, 0.0)
+			# 	elif laser_range[0] >= 0.22:
+			# 		navigator.move_bot(0.5 * linear_speed, 0.0)
+			# 	else:
+			# 		navigator.move_bot(0.0,0.0)
+			# 		break
 
-		pub_aim.publish(cam_angle + (21.2*vertical_amount))
-		time.sleep(3)
-		pub_fire.publish(True)
+			pub_aim.publish(cam_angle + (21.2*vertical_amount))
+			time.sleep(3)
+			pub_fire.publish(True)
+			break
 
 	rospy.spin()
 	exit()
