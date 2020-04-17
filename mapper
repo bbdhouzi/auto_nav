@@ -90,7 +90,7 @@ def occ_cb(msg, tf_buf):
 
 def target_identified_cb(msg):
 	global target_in_sight
-	if msg.data:
+	if msg.data == True:
 		rospy.logwarn('target identified')
 		target_in_sight = True
 		# navigator.update_target_pos()
