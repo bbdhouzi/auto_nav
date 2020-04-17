@@ -90,8 +90,9 @@ def occ_cb(msg, tf_buf):
 def target_identified_cb(msg):
 	global target_in_sight
 	if msg.data:
+		rospy.logwarn('target identified')
 		target_in_sight = True
-		navigator.update_target_pos()
+		# navigator.update_target_pos()
 	else:
 		target_in_sight = False
 
@@ -138,13 +139,13 @@ def mapper():
 
 	# navigator.test_funct('')
 
-	ret_map = navigator.map_region()
+	# ret_map = navigator.map_region()
 
-	with open('maptime.txt', 'w+') as f:
-		f.write("Elapsed time: " + str(time.time() - start_time))
+	# with open('maptime.txt', 'w+') as f:
+	# 	f.write("Elapsed time: " + str(time.time() - start_time))
 
-	cv2.imwrite('maze_map.png', ret_map)
-	cv2.imwrite('maze_map2.png', navigator.occ_map_raw)
+	# cv2.imwrite('maze_map.png', ret_map)
+	# cv2.imwrite('maze_map2.png', navigator.occ_map_raw)
 
 	# navigator.return_to_home()
 	if navigator.clr_target_located:
