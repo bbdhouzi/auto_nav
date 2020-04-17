@@ -108,9 +108,9 @@ if __name__ == '__main__':
 		while True:
 			id_positive, horizontal_amt, vertical_amt = image_analysis()
 			if id_positive:
-				pub_visible.publish(True)
-				pub_horizontal.publish(horizontal_amt)
-				pub_vertical.publish(vertical_amt)
+				pub_visible.publish(Bool(True))
+				pub_horizontal.publish(Int16(horizontal_amt))
+				pub_vertical.publish(Int16(vertical_amt))
 			else:
 				pub_visible.publish(False)
 				# center_msg = UInt16MultiArray(data=[center[0], center[1]])
