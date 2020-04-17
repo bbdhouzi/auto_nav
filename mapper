@@ -90,6 +90,7 @@ def occ_cb(msg, tf_buf):
 
 def target_identified_cb(msg):
 	global target_in_sight
+	rospy.loginfo(msg)
 	if msg.data == True:
 		rospy.logwarn('target identified')
 		target_in_sight = True
@@ -127,8 +128,8 @@ def mapper():
 	rospy.Subscriber('map', OccupancyGrid, occ_cb, tf_buf)
 
 	rospy.Subscriber('/target/identified', Bool, target_identified_cb)
-	rospy.Subscriber('/target/horizontal', Int8, target_horizontal_cb)
-	rospy.Subscriber('/target/vertical', Int8, target_vertical_cb)
+	rospy.Subscriber('/target/horizontal', Int16, target_horizontal_cb)
+	rospy.Subscriber('/target/vertical', Int16, target_vertical_cb)
 
 	pub_aim = rospy.Publisher('/servo/aiming', Int8, queue_size=10)
 	pub_fire = rospy.Publisher('/servo/firing', Bool, queue_size=10)
