@@ -448,7 +448,6 @@ class Navigation():
 					self.move_bot(0.5*self.linear_spd, 0.0)
 
 			rate.sleep()
-		# rospy.loginfo('its done mate')
 		self.update_map()
 		return self.occ_grid
 

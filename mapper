@@ -27,7 +27,6 @@ occdata = []
 yaw = 0.0
 rotate_speed = 0.1
 linear_speed = 0.1
-stop_distance = 0.25
 
 occ_bins = [-1, 0, 100, 101]
 front_angle = 30
@@ -70,8 +69,6 @@ def occ_cb(msg, tf_buf):
 	occ_counts = np.histogram(occdata, occ_bins)
 	total_bins = msg.info.width * msg.info.height
 
-	# rospy.loginfo('Unmapped: %i, Unoccupied: %i, Occupied: %i, Total: %i', occ_counts[0][0], occ_counts[0][1], occ_counts[0][2], total_bins)
-
 	trans2 = tf_buf.lookup_transform('map', 'base_link', rospy.Time(0))
 	cur_pos = trans2.transform.translation
 	map_res = msg.info.resolution
@@ -84,29 +81,25 @@ def occ_cb(msg, tf_buf):
 	oc2 = occdata + 1
 	occ_grid = np.uint8(oc2.reshape(msg.info.height, msg.info.width, order='F'))
 
-	# navigator.update_bot_pos((bot_pos[1],bot_pos[0]))
 	navigator.update_bot_pos(bot_pos)
 	navigator.update_occ_grid(occ_grid, map_origin, map_res)
 
 def target_identified_cb(msg):
 	global target_in_sight
-	# rospy.loginfo(msg)
 	if msg.data == True:
-		rospy.logwarn('target identified')
+		rospy.loginfo('target identified')
 		target_in_sight = True
 		navigator.clr_target_located = True
-		# navigator.update_target_pos()
+		navigator.update_target_pos()
 	else:
 		target_in_sight = False
 
 def target_horizontal_cb(msg):
 	global horizontal_amount
-	# rospy.loginfo(msg)
 	horizontal_amount = msg.data
 
 def target_vertical_cb(msg):
 	global vertical_amount
-	# rospy.loginfo(msg)
 	vertical_amount = msg.data
 
 def stopbot():
@@ -118,14 +111,6 @@ def stopbot():
     twist.angular.z = 0.0
     time.sleep(1)
     pub.publish(twist)
-
-def move_bot(spd, angular_spd):
-	pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
-	twist = Twist()
-	twist.linear.x = spd
-	twist.angular.z = angular_spd
-	time.sleep(1)
-	pub.publish(twist)
 
 def mapper():
 	global laser_range
@@ -149,22 +134,21 @@ def mapper():
 	rospy.on_shutdown(stopbot)
 	rospy.sleep(10)
 
-	# start_time = time.time()
+	start_time = time.time()
 
-	# navigator.test_funct('')
+	navigator.test_funct('')
 
-	# ret_map = navigator.map_region()
+	ret_map = navigator.map_region()
 
-	# with open('maptime.txt', 'w+') as f:
-	# 	f.write("Elapsed time: " + str(time.time() - start_time))
+	with open('maptime.txt', 'w+') as f:
+		f.write("Elapsed time: " + str(time.time() - start_time))
 
-	# cv2.imwrite('maze_map.png', ret_map)
-	# cv2.imwrite('maze_map2.png', navigator.occ_map_raw)
+	cv2.imwrite('maze_map.png', ret_map)
+	cv2.imwrite('maze_map2.png', navigator.occ_map_raw)
 
-	# navigator.return_to_home()
 	while True:
 		if navigator.clr_target_located:
-			# navigator.move_to_clr_trgt()
+			navigator.move_to_clr_trgt()
 			rate = rospy.Rate(5)
 			while not target_in_sight or abs(horizontal_amount) > 10:
 				rospy.loginfo(1)
@@ -185,7 +169,6 @@ def mapper():
 				rospy.loginfo(2)
 				if laser_range[0, 0] <= 0.28:
 					navigator.move_bot(-0.5 * linear_speed, 0.0)
-				# elif any(laser_range[0,0] >= 0.22):
 				elif laser_range[0, 0] > 0.32:
 					navigator.move_bot(0.5 * linear_speed, 0.0)
 				else:

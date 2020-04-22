@@ -40,19 +40,6 @@ def image_analysis():
 		return False, 0, 0
 	
 	hsv_frame = cv2.cvtColor(latest_frame, cv2.COLOR_BGR2HSV)
-	# if target_color  == 0:
-	# 	hsv_lower_range_1 = np.array([])
-	# 	hsv_upper_range_1 = np.array([])
-	# 	hsv_lower_range_2 = np.array([])
-	# 	hsv_upper_range_2 = np.array([])
-	# elif target_color == 1:
-	# 	hsv_lower_range_1 = np.array([])
-	# 	hsv_upper_range_1 = np.array([])
-	# elif target_color == 2:
-	# 	hsv_lower_range_1 = np.array([])
-	# 	hsv_upper_range_1 = np.array([])
-
-	# mask = cv2.inRange(hsv_frame, hsv_lower_range, hsv_upper_range)
 
 	if target_color == 0:
 		hsv_lower_ranges = [np.array([0,127,127]), np.array([170,127,127])]
@@ -115,7 +102,6 @@ if __name__ == '__main__':
 				pub_vertical.publish(Int16(vertical_amt))
 			else:
 				pub_visible.publish(False)
-				# center_msg = UInt16MultiArray(data=[center[0], center[1]])
 			rate.sleep()
 
 	except rospy.ROSInterruptException:
