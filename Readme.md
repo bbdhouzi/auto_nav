@@ -19,14 +19,14 @@ The latest stable version is available in the `master` branch and development wo
 
 The steps required to run the navigation program are as follows:
 * Raspberry pi
-..1. roslaunch turtlebot3_bringup turtlebot3_robot.launch
-..2. roslaunch raspicam_node camerac1_1280x720.launch
-..3. rosrun auto_nav shooter
+  1. roslaunch turtlebot3_bringup turtlebot3_robot.launch
+  2. roslaunch raspicam_node camerac1_1280x720.launch
+  3. rosrun auto_nav shooter
 
 * ROS master
-..1. roslaunch turtlebot3_slam turtlebot3_slam.launch slam_mthods:=gmapping
-..2. rosrun auto_nav target_id
-..3. rosrun auto_nav mapper
+  1. roslaunch turtlebot3_slam turtlebot3_slam.launch slam_mthods:=gmapping
+  2. rosrun auto_nav target_id
+  3. rosrun auto_nav mapper
 
 It is recommended to create aliases for these within your `~/.bashrc` file to make it easier to start the nodes
 
