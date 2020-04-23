@@ -12,6 +12,9 @@ The raspberry pi also needs to have the raspicam_node package installed from [he
 # Repo strucure
 The latest stable version is available in the `master` branch and development work is done in the `nav_class` branch
 
+# Software flow
+![software flowchart](https://github.com/bbdhouzi/auto_nav/blob/master/reference_files/Software%20Block%20diagram.png)
+
 # Important scripts
 ## nav_class.py
 
