@@ -3,7 +3,7 @@ The mapper script runs as a ros node to move a turtlebot through an unknown regi
 
 # Dependencies
 ## ROS master
-The master has been tested to run on Ubuntu 16.04 and ROS Kinetic Kame. The master also requiress openCV and rviz in order to work
+The master has been tested to run on Ubuntu 16.04 and ROS Kinetic Kame. The master also requiress openCV and rviz in order to work. The nodes require python 2.7, which is the default version for Ubuntu 16.04
 
 ## ROS slave
 The raspberry pi has been tested with the modified raspbian image provided [here](http://emanual.robotis.com/docs/en/platform/turtlebot3/raspberry_pi_3_setup/#install-linux-based-on-raspbian)
