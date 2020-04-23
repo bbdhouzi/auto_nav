@@ -1,13 +1,18 @@
 # auto_nav
 The mapper script runs as a ros node to move a turtlebot through an unknown region and map the region while also locating an RGB target. Once the mapping is completed, the bot will return to the location of the target, aim and fire at it.
 
+# Dependencies
+## ROS master
+The master has been tested to run on Ubuntu 16.04 and ROS Kinetic Kame. The master also requiress openCV in order to work
+
+## ROS slave
+The raspberry pi has been tested with the modified raspbian image provided [here](http://emanual.robotis.com/docs/en/platform/turtlebot3/raspberry_pi_3_setup/#install-linux-based-on-raspbian)
+The raspberry pi also needs to have the raspicam_node package installed from [here](https://github.com/UbiquityRobotics/raspicam_node)
+
+# Repo strucure
+The latest stable version is available in the `master` branch and development work is done in the `nav_class` branch
+
 # Important scripts
-## mapper
-
-This is the main node that has to be run on the ROS master device, it uses data from `/map` and `/scan` topics along with openCV to autonomously navigate and map an unknown region.
-
-It uses the "Navigation" class defined in `nav_class.py` to navigate the area.
-
 ## nav_class.py
 
 This file contains the Navigation class that performs all the navigation related work for the turtlebot.
@@ -90,6 +95,14 @@ This method adds a point on the rviz display to see where the bot is headed and 
 **furthest visible corners** have a *marker type of 1* and appear **green** on rviz
 **closest edges** have a *marker type of 2* and appear **blue** on rviz
 **other points of interest** found when there are no furthest visible corners have a *marker type of 3* and appear **pink** on rviz
+
+## mapper
+
+This is the main node that has to be run on the ROS master device, it uses data from `/map` and `/scan` topics along with openCV to autonomously navigate and map an unknown region.
+
+It uses the "Navigation" class defined in `nav_class.py` to navigate the area.
+
+The vertical amount published on the `/target/vertical` is the offset as a percentage from the center of the of the cameras view. It is used to find the desired angle of the firing mechanism. The vertical field of view of the camera is 42.4 degrees. Since the offset is from the center, the 21.2 is used to calculate the angle offset. `cam_angle` refers to the angle of the camera from the horizontal.
 
 ## target_id
 This node gets the image the camera connected to the bot and scans the images for the RGB target. If a target is identified, it publishes `True` to the `/target/identified` topic. the vertical and horizontal distance from the center of the frame to the center of the target is found as values ranging from 0 to 100 and published to the `/target/horizontal` and `/target/vertical` topics. 

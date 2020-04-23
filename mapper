@@ -42,7 +42,7 @@ target_in_sight = False
 horizontal_amount = 0
 vertical_amount = 0
 
-cam_angle = 30
+cam_angle = 15
 
 navigator = Navigation(linear_speed, rotate_speed)
 navigator.clr_target_located = True
@@ -177,7 +177,7 @@ def mapper():
 				rate.sleep()
 
 			rospy.logwarn('firing')
-			pub_aim.publish(cam_angle + (21.2*vertical_amount))
+			pub_aim.publish(cam_angle + (21.2*vertical_amount)/100)
 			time.sleep(3)
 			pub_fire.publish(True)
 			break
