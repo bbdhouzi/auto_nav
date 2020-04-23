@@ -3,7 +3,7 @@ The mapper script runs as a ros node to move a turtlebot through an unknown regi
 
 # Dependencies
 ## ROS master
-The master has been tested to run on Ubuntu 16.04 and ROS Kinetic Kame. The master also requiress openCV in order to work
+The master has been tested to run on Ubuntu 16.04 and ROS Kinetic Kame. The master also requiress openCV and rviz in order to work
 
 ## ROS slave
 The raspberry pi has been tested with the modified raspbian image provided [here](http://emanual.robotis.com/docs/en/platform/turtlebot3/raspberry_pi_3_setup/#install-linux-based-on-raspbian)
@@ -14,6 +14,20 @@ The latest stable version is available in the `master` branch and development wo
 
 # Software flow
 ![software flowchart](https://github.com/bbdhouzi/auto_nav/blob/master/reference_files/Software%20Block%20diagram.png)
+
+# Procedure
+
+The steps required to run the navigation program are as follows:
+* Raspberry pi
+..1. 
+..2. 
+..3. 
+
+* ROS master
+..1. rosrun auto_nav target_id
+..2. rosrun auto_nav mapper
+
+
 
 # Important scripts
 ## nav_class.py
